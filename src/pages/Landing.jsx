@@ -4,34 +4,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion as Motion } from "framer-motion";
 import { ArrowUpRight, Sparkles, MapPin, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
 import Card from "../components/common/Card";
-import WhatYouCanDoCarousel from "../components/WhatYouCanDoCarousel";
-import HeroSwipeImage from "../components/HeroSwipeImage";
-import TransitionOverlay from "../components/TransitionOverlay";
+import WhatYouCanDoCarousel from "../components/Landing/WhatYouCanDoCarousel";
+import TransitionOverlay from "../components/Landing/TransitionOverlay";
 
-
-
-const items = [
-  {
-    img: "https://i.pinimg.com/736x/31/6c/20/316c2007c5919057f9d2b4e6cbde1e8c.jpg",
-    tag: "VIBE-BASED QUIZ",
-    title: "Vibe-based trip quiz",
-    body: "Answer a few fun questions and TRAP learns how you actually like to travel.",
-  },
-  {
-    img: "https://img.freepik.com/free-photo/laptop-maps-marble-background_23-2148232501.jpg",
-    tag: "INSTANT PLANS",
-    title: "Auto AI itineraries",
-    body: "Get a day-by-day draft with flights, stays and ideas in seconds.",
-  },
-  {
-    img: "https://tripscholars.com/wp-content/uploads/2024/03/Beige-Aesthetic-Photo-Collage-Vision-Board-Landscape-Poster-2.jpg",
-    tag: "ONE CLEAN BOARD",
-    title: "Single board for the whole trip",
-    body: "See flights, stays and activities in one calm, editable timeline.",
-  },
-];
 
 const heroPlaces = [
   [
@@ -271,16 +247,16 @@ const ExperienceCarousel = () => {
 };
 
 const Landing = () => {
-    const navigate = useNavigate();
-const [isTransitioning, setIsTransitioning] = useState(false);
+  const navigate = useNavigate();
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
 
 
   const handleGoToAuth = () => {
-  console.log("✅ BUTTON CLICKED");
-  if (isTransitioning) return;
-  setIsTransitioning(true);
-};
+    console.log("✅ BUTTON CLICKED");
+    if (isTransitioning) return;
+    setIsTransitioning(true);
+  };
 
 
 
@@ -296,23 +272,11 @@ const [isTransitioning, setIsTransitioning] = useState(false);
             The new standard.
           </span>
         </div>
-        <button
-          onClick={handleGoToAuth}
-          className="
-    px-4 py-2
-    rounded-full
-    text-xs md:text-sm font-medium
-    text-slate
-    bg-white/500
-    backdrop-blur
-    border border-slate-400
-    hover:bg-white
-    hover:text-slate-900
-    transition
-  "
-        >
-          Log in or Sign up
-        </button>
+        <div className="absolute top-0 right-0 mt-2 mr-6">
+          <button onClick={handleGoToAuth} className="px-6 py-2 text-sm font-medium text-slate-900 bg-white rounded-full border border-slate-200 hover:bg-slate-50 transition-all duration-200">
+            Log in or Sign up
+          </button>
+        </div>
       </header>
 
       {/* HERO */}
@@ -332,7 +296,7 @@ const [isTransitioning, setIsTransitioning] = useState(false);
                 WITHOUT
               </span>{" "}
               <br />
-              <span className="text-sky-500">LIMITS.</span>
+              <span className="text-sky-600">LIMITS.</span>
             </h1>
 
             <Motion.p
@@ -352,7 +316,7 @@ const [isTransitioning, setIsTransitioning] = useState(false);
               className="flex flex-wrap gap-4 pt-4"
             >
               <button
-              onClick={handleGoToAuth}
+                onClick={handleGoToAuth}
 
                 className="group relative px-9 py-5 bg-slate-900 text-white rounded-full font-bold text-sm md:text-lg overflow-hidden transition-transform hover:scale-105 active:scale-95 shadow-xl shadow-slate-900/20"
               >
@@ -385,7 +349,7 @@ const [isTransitioning, setIsTransitioning] = useState(false);
                 const isEven = colIndex % 2 === 0;
 
                 return (
-      
+
                   <div
                     key={colIndex}
                     className="relative flex-1 overflow-hidden"
@@ -534,7 +498,7 @@ const [isTransitioning, setIsTransitioning] = useState(false);
             </div>
 
             <button
-            type="button"
+              type="button"
               onClick={handleGoToAuth}
               className="group relative px-9 py-4.5 bg-slate-900 text-white rounded-full font-bold text-xl md:text-lg overflow-hidden transition-transform hover:scale-115 active:scale-95 shadow-lg shadow-slate-900/20 whitespace-nowrap"
             >
@@ -573,7 +537,7 @@ const [isTransitioning, setIsTransitioning] = useState(false);
                   />
                   <button
                     type="submit"
-                    className="px-6 py-2.5 rounded-full bg-sky-500 hover:bg-sky-400 text-sm md:text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors"
+                    className="px-6 py-2.5 rounded-full bg-sky-600 hover:bg-sky-400 text-sm md:text-base font-semibold text-white shadow-lg shadow-sky-500/30 transition-colors"
                   >
                     Count me in
                   </button>
@@ -619,8 +583,8 @@ const [isTransitioning, setIsTransitioning] = useState(false);
       </section>
 
       {isTransitioning && (
-  <TransitionOverlay onFinished={() => navigate("/auth")} />
-)}
+        <TransitionOverlay onFinished={() => navigate("/auth")} />
+      )}
 
 
     </div>

@@ -1,7 +1,12 @@
-module.exports = {
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+import scrollbar from "tailwind-scrollbar";
+
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,jsx}",
+  ],
   theme: {
     extend: {},
   },
-  plugins: [],
-}
+  plugins: [scrollbar],
+};

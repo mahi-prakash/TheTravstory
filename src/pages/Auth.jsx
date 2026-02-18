@@ -6,13 +6,12 @@ import Card from "../components/common/Card";
 import { useNavigate } from "react-router-dom";
 
 const Auth = () => {
-   const navigate = useNavigate();
+  const navigate = useNavigate();
   const handleContinue = (e) => {
     e.preventDefault();
-    // existing auth / navigation logic here 
+    // existing auth / navigation logic here
     navigate("/chat");
   };
-
   return (
     <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-sky-50 via-sky-50 to-sky-100 flex items-center justify-center px-6">
       {/* background glows */}
@@ -27,38 +26,34 @@ const Auth = () => {
           transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
           className="lg:w-1/2 space-y-6"
         >
-          <p className="text-xs md:text-sm font-bold tracking-[0.25em] uppercase text-sky">
-            Sign in
-          </p>
-
           <h1 className="text-3xl md:text-5xl font-black tracking-tight text-slate-900 leading-tight">
             It’s time to fly again.
           </h1>
 
-          <p className="text-base md:text-lg text-slate-600 max-w-md leading-relaxed">
-            Keep every chaotic‑good itinerary, hidden gem, and last‑minute flight
-            in one calm place. Pick up any trip on any device.
+          <p className="text-base md:text-lg text-slate-700 max-w-md leading-relaxed">
+            Keep every chaotic‑good itinerary, hidden gem, and last‑minute
+            flight in one calm place. Pick up any trip on any device.
           </p>
 
-          {/* mini benefits row to fill space */}
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <div className="rounded-2xl bg-white/70 border border-slate-200 px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold text-sky-500">
+          {/* mini benefits row to fill space 
+          <div className="grid grid-cols-2 gap-6 pt-2">
+            <div className="rounded-2xl bg-white/80 border border-slate-200 px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold text-sky-600">
                 SYNC ACROSS DEVICES
               </p>
               <p className="text-sm text-slate-700">
-                Start on laptop, tweak from airport Wi‑Fi.
+                Start on laptop, tweak from airport WiFi.
               </p>
             </div>
-            <div className="rounded-2xl bg-white/70 border border-slate-200 px-4 py-3 shadow-sm">
-              <p className="text-xs font-semibold text-sky-500">
+            <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+              <p className="text-xs font-semibold text-sky-600">
                 SAVE YOUR CHAOS
               </p>
               <p className="text-sm text-slate-700">
                 One place for flights, stays, and “we’ll see” plans.
               </p>
             </div>
-          </div>
+          </div> */}
         </Motion.div>
 
         {/* RIGHT: larger card + denser layout */}
@@ -71,7 +66,7 @@ const Auth = () => {
           <Card className="px-8 pt-8 pb-6 rounded-[2.5rem] bg-white/95 shadow-[0_32px_80px_-40px_rgba(15,23,42,0.9)]">
             {/* card header */}
             <div className="mb-6">
-              <p className="text-xs font-semibold tracking-[0.22em] uppercase text-sky-500">
+              <p className="text-xs font-semibold tracking-[0.22em] uppercase text-sky-600">
                 Travixo account
               </p>
               <h2 className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">
@@ -105,7 +100,6 @@ const Auth = () => {
                 />
               </div>
 
-
               <div className="pt-1">
                 <Button
                   type="submit"
@@ -126,9 +120,7 @@ const Auth = () => {
                   Get your vibe first
                 </span>
               </p>
-              <p className="text-[11px] text-slate-400">
-                No spam. Just trips.
-              </p>
+              <p className="text-[11px] text-slate-400">No spam. Just trips.</p>
             </div>
           </Card>
 
@@ -140,5 +132,4 @@ const Auth = () => {
     </div>
   );
 };
-
 export default Auth;

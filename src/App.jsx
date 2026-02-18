@@ -1,5 +1,4 @@
 // src/App.jsx
-import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -10,6 +9,7 @@ import Chat from "./pages/Chat";
 import Planner from "./pages/Planner";
 import Profile from "./pages/Profile";
 import MainLayout from "./layouts/MainLayout";
+import { Navigate } from "react-router-dom";
 
 const App = () => {
   return (
@@ -22,6 +22,7 @@ const App = () => {
         <Route path="/explore" element={<Explore />} />
         <Route path="/chat" element={<Chat />} />
         <Route path="/planner/:tripId" element={<Planner />} />
+        <Route path="/planner" element={<Navigate to="/planner/1" />} />
         <Route path="/profile" element={<Profile />} />
       </Route>
     </Routes>
