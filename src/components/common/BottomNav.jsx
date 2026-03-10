@@ -1,5 +1,4 @@
 // src/components/common/BottomNav.jsx
-import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Home as HomeIcon,
@@ -42,11 +41,10 @@ const BottomNav = () => {
                 className="flex flex-col items-center gap-1 text-[10px] font-medium"
               >
                 <div
-                  className={`flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
-                    active
+                  className={`flex items-center justify-center h-9 w-9 rounded-full transition-colors ${active
                       ? "bg-sky-500/10 text-sky-600"
                       : "text-slate-400 hover:text-slate-700"
-                  }`}
+                    }`}
                 >
                   <Icon size={18} strokeWidth={active ? 2.4 : 2} />
                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   MapContainer,
   TileLayer,
@@ -24,19 +25,31 @@ import {
   ArrowLeft,
   Calendar,
   Tag,
-  DollarSign
+  DollarSign,
+  Check,
+  ChevronRight,
+  Sparkles,
+  RotateCcw,
+  Undo2,
+  SlidersHorizontal
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 // Fix Leaflet Icons
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-});
+try {
+  if (L && L.Icon && L.Icon.Default) {
+    delete L.Icon.Default.prototype._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+      iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+      shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    });
+  }
+} catch (e) {
+  console.error("Leaflet icon fix failed", e);
+}
 
 // --- Mock Data ---
 
@@ -207,7 +220,7 @@ const nearbyPlaces = [
     name: "Café de Flore",
     type: "food",
     rating: 4.5,
-    img: "https://images.unsplash.com/photo-1550966871-3ed3c622bc13?q=80&w=600",
+    img: "https://images.squarespace-cdn.com/content/v1/5c39b850f8370ada6518b722/1585242013733-DASOV04TETMNPCT4C11U/julian-dik--czl8QNCVKY-unsplash.jpg",
     coords: [48.8541, 2.3331],
     category: "Food",
     cost: "€20-40",
@@ -221,7 +234,7 @@ const nearbyPlaces = [
     name: "Luxembourg Gardens",
     type: "activity",
     rating: 4.8,
-    img: "https://images.unsplash.com/photo-1558296236-8c7a65956037?q=80&w=600",
+    img: "https://eltour.travel/useruploads/articles/article_2678036d54.jpg",
     coords: [48.8462, 2.3371],
     category: "Nature",
     cost: "Free",
@@ -253,12 +266,42 @@ const createCustomIcon = (number, color) => {
   });
 };
 
+const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return 1440;
+  if (timeStr.toLowerCase() === "tbd") return 1440;
+
+  // Try to match HH:MM AM/PM
+  const match = timeStr.match(/(\d+):?(\d+)?\s*(AM|PM)/i);
+  if (!match) {
+    // Check for keywords
+    const lower = timeStr.toLowerCase();
+    if (lower.includes("morning")) return 480; // 8 AM
+    if (lower.includes("noon")) return 720; // 12 PM
+    if (lower.includes("afternoon")) return 840; // 2 PM
+    if (lower.includes("evening")) return 1080; // 6 PM
+    if (lower.includes("night")) return 1260; // 9 PM
+    return 1441; // Anything else goes to the bottom
+  }
+
+  let [_, hours, minutes, period] = match;
+  hours = parseInt(hours);
+  minutes = parseInt(minutes || 0);
+
+  if (period.toUpperCase() === "PM" && hours < 12) hours += 12;
+  if (period.toUpperCase() === "AM" && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+};
+
 function MapUpdater({ locations }) {
   const map = useMap();
   useEffect(() => {
-    if (locations.length > 0) {
-      const bounds = L.latLngBounds(locations.map(l => l.coords));
-      map.fitBounds(bounds, { padding: [100, 100], maxZoom: 14 });
+    if (locations && locations.length > 0) {
+      const validCoords = locations.filter(l => l.coords).map(l => l.coords);
+      if (validCoords.length > 0) {
+        const bounds = L.latLngBounds(validCoords);
+        map.fitBounds(bounds, { padding: [100, 100], maxZoom: 14 });
+      }
     }
   }, [locations, map]);
   return null;
@@ -267,21 +310,119 @@ function MapUpdater({ locations }) {
 // --- Main Component ---
 
 export default function Planner() {
-  const [days, setDays] = useState(initialDays);
+  const navigate = useNavigate();
+
+  // Initialize trips with both AI and User versions
+  const [trips, setTrips] = useState([
+    {
+      id: 1,
+      name: "Paris Summer",
+      aiPlan: initialDays,
+      userPlan: JSON.parse(JSON.stringify(initialDays)),
+      isModified: false
+    },
+    {
+      id: 2,
+      name: "Dubai Luxury",
+      aiPlan: {
+        "day-1": { id: "day-1", title: "Day 1: Arrival & Burj", date: "Dec 15", color: "#0284c7", items: [] },
+        "day-2": { id: "day-2", title: "Day 2: Desert Safari", date: "Dec 16", color: "#0284c7", items: [] },
+        "day-3": { id: "day-3", title: "Day 3: Mall & Fountains", date: "Dec 17", color: "#0284c7", items: [] },
+      },
+      userPlan: {
+        "day-1": { id: "day-1", title: "Day 1: Arrival & Burj", date: "Dec 15", color: "#0284c7", items: [] },
+        "day-2": { id: "day-2", title: "Day 2: Desert Safari", date: "Dec 16", color: "#0284c7", items: [] },
+        "day-3": { id: "day-3", title: "Day 3: Mall & Fountains", date: "Dec 17", color: "#0284c7", items: [] },
+      },
+      isModified: false
+    },
+    {
+      id: 3,
+      name: "Kyoto Zen",
+      aiPlan: {
+        "day-1": { id: "day-1", title: "Day 1: Temples", date: "Mar 20", color: "#0284c7", items: [] },
+        "day-2": { id: "day-2", title: "Day 2: Arashiyama", date: "Mar 21", color: "#0284c7", items: [] },
+        "day-3": { id: "day-3", title: "Day 3: Gion District", date: "Mar 22", color: "#0284c7", items: [] },
+      },
+      userPlan: {
+        "day-1": { id: "day-1", title: "Day 1: Temples", date: "Mar 20", color: "#0284c7", items: [] },
+        "day-2": { id: "day-2", title: "Day 2: Arashiyama", date: "Mar 21", color: "#0284c7", items: [] },
+        "day-3": { id: "day-3", title: "Day 3: Gion District", date: "Mar 22", color: "#0284c7", items: [] },
+      },
+      isModified: false
+    }
+  ]);
+
+  const [activeTripId, setActiveTripId] = useState(1);
+  const activeTrip = trips.find(t => t.id === activeTripId) || trips[0];
+  const [showTripSelector, setShowTripSelector] = useState(false);
+
+  // The 'days' state now strictly represents the Working (User) Version of the active trip
+  const [days, setDays] = useState(activeTrip.userPlan);
+
+  // Update local days when active trip changes
+  useEffect(() => {
+    setDays(activeTrip.userPlan);
+  }, [activeTripId]);
+
+  // Persist local edits back to the main trips state & detect changes
+  useEffect(() => {
+    setTrips(prev => prev.map(t => {
+      if (t.id === activeTripId) {
+        // Detect if user has modified the AI baseline
+        const hasChanges = JSON.stringify(t.aiPlan) !== JSON.stringify(days);
+        return { ...t, userPlan: days, isModified: hasChanges };
+      }
+      return t;
+    }));
+  }, [days, activeTripId]);
+
   const [dayOrder, setDayOrder] = useState(["day-1", "day-2", "day-3"]);
   const [selectedDayId, setSelectedDayId] = useState("all");
-  const [activeTab, setActiveTab] = useState("saved");
+  const [activeTab, setActiveTab] = useState("nearby");
   const [collapsedDays, setCollapsedDays] = useState({});
   const [selectedPlace, setSelectedPlace] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [addingPlace, setAddingPlace] = useState(null); // { place, dayId, time }
+  const [addFeedback, setAddFeedback] = useState(null); // { id, dayName }
+  const [planMode, setPlanMode] = useState("user"); // 'ai' or 'user'
+  const [showPlanSettings, setShowPlanSettings] = useState(false);
+  const [editingTimeId, setEditingTimeId] = useState(null);
+
+  const displayDays = planMode === "ai" ? activeTrip.aiPlan : days;
+  const isReadOnly = planMode === "ai";
+
+  // --- HISTORY / UNDO LOGIC ---
+  const [history, setHistory] = useState([]);
+
+  const pushToHistory = () => {
+    setHistory(prev => [...prev, JSON.parse(JSON.stringify(days))].slice(-20)); // Keep last 20 states
+  };
+
+  const undo = () => {
+    if (history.length === 0) return;
+    const lastState = history[history.length - 1];
+    setHistory(prev => prev.slice(0, -1));
+    setDays(lastState);
+  };
+
+  // Clear history when switching trips
+  useEffect(() => {
+    setHistory([]);
+  }, [activeTripId]);
 
   const toggleCollapse = (dayId) => {
     setCollapsedDays(prev => ({ ...prev, [dayId]: !prev[dayId] }));
   };
 
   const onDragEnd = (result) => {
+    if (isReadOnly) return;
     const { source, destination } = result;
     if (!destination) return;
 
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return;
+
+    pushToHistory();
     if (source.droppableId === destination.droppableId) {
       const day = days[source.droppableId];
       const newItems = Array.from(day.items);
@@ -303,13 +444,16 @@ export default function Planner() {
     }
   };
 
-  const addToDay = (place, dayId) => {
-    if (!dayId) return;
+  const addToDay = (place, dayId, time = "TBD") => {
+    if (isReadOnly || !dayId) return;
+
+    pushToHistory();
     const newItem = {
       id: `item-${Date.now()}`,
+      placeId: place.id,
       title: place.name,
       type: place.type,
-      time: "TBD",
+      time: time || "TBD",
       location: place.name,
       coords: place.coords,
       img: place.img,
@@ -321,13 +465,86 @@ export default function Planner() {
       desc: place.desc
     };
 
+    setDays(prev => {
+      const newItems = [...prev[dayId].items, newItem];
+      // Sort items by time
+      newItems.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+      return {
+        ...prev,
+        [dayId]: {
+          ...prev[dayId],
+          items: newItems
+        }
+      };
+    });
+
+    // Feedback logic
+    setAddFeedback({ id: place.id, dayName: days[dayId]?.title?.split(':')[0] || "Day" });
+    setAddingPlace(null);
+    setTimeout(() => setAddFeedback(null), 3000);
+  };
+
+  const updateItemTime = (dayId, itemId, newTime) => {
+    if (isReadOnly) return;
+    pushToHistory();
+    setDays(prev => {
+      const newItems = prev[dayId].items.map(item =>
+        item.id === itemId ? { ...item, time: newTime } : item
+      );
+      // Sort items by time
+      newItems.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+
+      return {
+        ...prev,
+        [dayId]: {
+          ...prev[dayId],
+          items: newItems
+        }
+      };
+    });
+    setEditingTimeId(null);
+  };
+
+  const deleteItem = (dayId, itemId) => {
+    if (isReadOnly) return;
+    pushToHistory();
     setDays(prev => ({
       ...prev,
       [dayId]: {
         ...prev[dayId],
-        items: [...prev[dayId].items, newItem]
+        items: prev[dayId].items.filter(item => item.id !== itemId)
       }
     }));
+  };
+
+  const restorePlan = () => {
+    if (window.confirm("Restore to original AI itinerary? Your changes will be lost.")) {
+      pushToHistory();
+      const original = JSON.parse(JSON.stringify(activeTrip.aiPlan));
+      setDays(original);
+      // Reset day order from AI plan
+      setDayOrder(Object.keys(original));
+    }
+  };
+
+  const addDay = () => {
+    if (isReadOnly) return;
+    pushToHistory();
+    const nextDayNum = dayOrder.length + 1;
+    const nextDayId = `day-${nextDayNum}-${Date.now()}`; // Unique ID
+
+    setDays(prev => ({
+      ...prev,
+      [nextDayId]: {
+        id: nextDayId,
+        title: `Day ${nextDayNum}: New Chapter`,
+        date: "TBD",
+        color: "#0284c7",
+        items: []
+      }
+    }));
+    setDayOrder(prev => [...prev, nextDayId]);
   };
 
   // Map Data Logic
@@ -336,11 +553,12 @@ export default function Planner() {
   const visibleDays = selectedDayId === "all" ? dayOrder : [selectedDayId];
 
   visibleDays.forEach(dayId => {
-    const day = days[dayId];
+    const day = displayDays[dayId];
+    if (!day) return; // Safety check
     const coords = [];
-    day.items.forEach((item, index) => {
+    (day.items || []).forEach((item, index) => {
       mapMarkers.push({ ...item, dayColor: day.color, number: index + 1, dayId });
-      coords.push(item.coords);
+      if (item.coords) coords.push(item.coords);
     });
     if (coords.length > 1) {
       mapPolylines.push({ coords, color: day.color, dayId });
@@ -348,7 +566,7 @@ export default function Planner() {
   });
 
   return (
-    <div className="h-screen bg-slate-50 font-sans grid grid-cols-[450px_1fr_400px] gap-6 p-6 overflow-hidden">
+    <div className="h-full bg-slate-50 font-sans grid grid-cols-[450px_1fr_400px] gap-6 p-6 overflow-hidden no-scrollbar">
 
       <DragDropContext onDragEnd={onDragEnd}>
 
@@ -356,38 +574,191 @@ export default function Planner() {
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white/90 backdrop-blur-xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden h-[calc(100vh-20px)] relative z-10"
+          className="bg-white/90 backdrop-blur-xl rounded-2xl shadow-2xl flex flex-col overflow-hidden h-[calc(100vh-20px)] relative z-10 border border-slate-200/50"
         >
           {/* Fixed Header */}
           <div className="p-6 pb-2 shrink-0 bg-white/50 backdrop-blur-md z-20">
-            <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight mb-4">Itinerary</h2>
+            <div className="flex flex-col gap-4 mb-4">
+              {/* Header Row: Title/Selector & Plan Controls */}
+              <div className="flex items-center justify-between relative z-30">
+                <div className="flex flex-col">
+                  <h2 className="text-[28px] font-[900] text-[#0B1527] tracking-tight">Itinerary</h2>
 
-            {/* Day Filter Pills */}
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide items-center">
-              <button
-                onClick={() => setSelectedDayId("all")}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-sm border ${selectedDayId === "all"
-                  ? "bg-sky-600 text-white border-sky-600 shadow-md transform scale-105"
-                  : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                  }`}
-              >
-                All Days
-              </button>
-              {dayOrder.map(dayId => {
-                const day = days[dayId];
-                const isActive = selectedDayId === dayId;
-                return (
+                  {/* TRIP SELECTOR DROPDOWN Trigger */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowTripSelector(!showTripSelector)}
+                      className="flex items-center gap-1.5 px-0.5 py-0.5 transition-colors group"
+                    >
+                      <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">{activeTrip.name}</span>
+                      <ChevronDown size={12} className={`text-slate-300 group-hover:text-slate-500 transition-transform duration-300 ${showTripSelector ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    <AnimatePresence>
+                      {showTripSelector && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          className="absolute left-0 top-full mt-2 w-56 bg-white rounded-xl shadow-2xl border border-slate-100 py-2 z-50 overflow-hidden ring-1 ring-black/[0.04]"
+                        >
+                          <div className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] border-b border-slate-50 mb-1">
+                            Switch Trip
+                          </div>
+                          <div className="max-h-[280px] overflow-y-auto no-scrollbar">
+                            {trips.map(trip => (
+                              <button
+                                key={trip.id}
+                                onClick={() => {
+                                  setActiveTripId(trip.id);
+                                  setShowTripSelector(false);
+                                }}
+                                className={`w-full px-5 py-3 text-left text-[11px] font-bold transition-all flex items-center justify-between group ${activeTripId === trip.id
+                                  ? 'bg-sky-50 text-sky-600'
+                                  : 'text-slate-600 hover:bg-slate-50 hover:text-sky-600'}`}
+                              >
+                                {trip.name}
+                                {activeTripId === trip.id && (
+                                  <div className="h-1.5 w-1.5 rounded-full bg-sky-600" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* CONTROL POSITION: Adjust 'translate-y-[0px]' to move these buttons up or down */}
+                <div className="flex items-center gap-2 relative translate-y-[-4px]">
+                  {/* Plan Toggle */}
+                  <div className="flex p-1 bg-slate-100/30 backdrop-blur-md rounded-md border border-slate-200/50 shadow-sm h-9 items-center">
+                    <button
+                      onClick={() => setPlanMode('ai')}
+                      className={`h-full px-4 text-[9.5px] font-black rounded-md transition-all flex items-center gap-2 ${planMode === 'ai' ? 'bg-white shadow-sm text-slate-600 border border-slate-200/50' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      AI PLAN
+                    </button>
+                    <button
+                      onClick={() => setPlanMode('user')}
+                      className={`h-full px-4 text-[9.5px] font-black rounded-md transition-all flex items-center gap-2 ${planMode === 'user' ? 'bg-white shadow-sm text-slate-600 border border-slate-200/50' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      YOUR PLAN
+                    </button>
+                  </div>
+
+                  {/* Plan Actions Filter Button */}
+                  {planMode === 'user' && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowPlanSettings(!showPlanSettings)}
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all border outline-none relative ${showPlanSettings ? 'bg-sky-50 border-sky-200 text-sky-600 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 shadow-sm'}`}
+                        title="Plan Actions & History"
+                      >
+                        <SlidersHorizontal size={14} strokeWidth={2.5} />
+                        {activeTrip.isModified && !showPlanSettings && (
+                          <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-sky-500 rounded-full border-2 border-white shadow-sm" />
+                        )}
+                      </button>
+
+                      <AnimatePresence>
+                        {showPlanSettings && (
+                          <>
+                            {/* Invisible overlay for click-outside to close */}
+                            <div className="fixed inset-0 z-40" onClick={() => setShowPlanSettings(false)} />
+
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                              className="absolute right-0 mt-3 w-52 bg-white rounded-[22px] shadow-2xl border border-slate-100 py-3 z-50 ring-1 ring-black/[0.04]"
+                            >
+                              <div className="px-4 pb-2.5 border-b border-slate-50 mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-1.5 h-1.5 rounded-full ${activeTrip.isModified ? 'bg-sky-500 shadow-[0_0_8px_rgba(14,165,233,0.6)] animate-pulse' : 'bg-slate-300'}`} />
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] whitespace-nowrap">
+                                    {activeTrip.isModified ? 'Status: Modified' : 'Status: Original'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="px-2 space-y-1">
+                                {activeTrip.isModified ? (
+                                  <>
+                                    <button
+                                      onClick={() => { undo(); setShowPlanSettings(false); }}
+                                      disabled={history.length === 0}
+                                      className={`w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold rounded-xl transition-all group ${history.length > 0 ? 'text-slate-600 hover:bg-slate-50' : 'text-slate-300 pointer-events-none'}`}
+                                    >
+                                      <div className="flex items-center gap-2.5">
+                                        <Undo2 size={13} className={history.length > 0 ? 'text-slate-400 group-hover:text-sky-600' : 'text-slate-200'} />
+                                        <span>Undo Edit</span>
+                                      </div>
+                                      {history.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-sky-400/20" />}
+                                    </button>
+                                    <button
+                                      onClick={() => { restorePlan(); setShowPlanSettings(false); }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-all group"
+                                    >
+                                      <RotateCcw size={13} className="text-slate-600 group-hover:rotate-180 transition-transform duration-500" />
+                                      <span>Restore to AI</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="px-3 py-4 text-center">
+                                    <p className="text-[10px] font-medium text-slate-400 leading-relaxed italic">
+                                      Your plan matches the AI version.<br />Make edits to see history.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Row 3: Integrated Day Filter Container */}
+              <div className="p-2 bg-slate-100/20 backdrop-blur-md rounded-md border border-slate-200/30 shadow-md relative z-10">
+
+                <div className="flex gap-1 overflow-x-auto scrollbar-hide items-center">
+
+
                   <button
-                    key={dayId}
-                    onClick={() => setSelectedDayId(dayId)}
-                    className={`flex-shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-sm border ${isActive ? "text-white shadow-md transform scale-105" : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                    onClick={() => setSelectedDayId("all")}
+                    className={`flex-shrink-0 px-4 py-2.5 rounded-md text-[10px] font-black transition-all shadow-sm border ${selectedDayId === "all"
+                      ? "bg-sky-600 text-white border-sky-600 shadow-md"
+                      : "bg-white/80 text-slate-500 border-slate-100 hover:border-slate-200"
                       }`}
-                    style={isActive ? { backgroundColor: day.color, borderColor: day.color } : {}}
                   >
-                    {day.date}
+                    ALL DAYS
                   </button>
-                );
-              })}
+
+                  {dayOrder.map(dayId => {
+                    const day = displayDays[dayId];
+                    if (!day) return null;
+                    const isActive = selectedDayId === dayId;
+                    return (
+                      /* CONTROL: Change 'py-2' to resize individual date bubble heights */
+                      <button
+                        key={dayId}
+                        onClick={() => setSelectedDayId(dayId)}
+                        className={`flex-shrink-0 px-4 py-2 rounded-lg text-[10px] font-black transition-all shadow-sm border ${isActive
+                          ? "text-white shadow-md"
+                          : "bg-white/80 text-slate-500 border-slate-100 hover:border-slate-200"
+                          }`}
+                        style={isActive ? { backgroundColor: day.color, borderColor: day.color } : {}}
+                      >
+                        {day.date.toUpperCase()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -395,30 +766,31 @@ export default function Planner() {
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-6 no-scrollbar">
             <div className="space-y-6 pt-2">
               {visibleDays.map(dayId => {
-                const day = days[dayId];
+                const day = displayDays[dayId];
+                if (!day) return null; // CRITICAL SAFETY GUARD
                 const isCollapsed = collapsedDays[dayId];
 
                 return (
 
-                  <div key={dayId} className="relative bg-white/60 border border-white/60 p-4 rounded-[28px] shadow-sm mb-4 backdrop-blur-sm transition-all hover:bg-white/80 hover:shadow-md">
+                  <div key={dayId} className="relative bg-white/60 border border-slate-100 p-4 rounded-xl shadow-sm mb-4 backdrop-blur-sm transition-all hover:bg-white/80 hover:shadow-md">
 
                     {/* Day Header */}
                     <div
                       onClick={() => toggleCollapse(dayId)}
-                      className="flex items-center gap-3 mb-2 cursor-pointer group"
+                      className="flex items-center gap-4 mb-4 cursor-pointer group"
                     >
                       <div
-                        className="w-10 h-10 rounded-2xl flex items-center justify-center text-white font-bold shadow-md shadow-slate-200 transition-transform group-hover:scale-105"
+                        className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-black shadow-lg shadow-sky-100/50 transition-all group-hover:scale-105"
                         style={{ backgroundColor: day.color }}
                       >
-                        {day.items.length}
+                        {day.dayNumber || dayId.split('-')[1]}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-slate-800 text-sm leading-tight truncate">{day.title}</h3>
-                        <p className="text-[10px] text-slate-500 font-bold mt-0.5">{day.date} • {day.items.length} stops</p>
+                        <h3 className="font-extrabold text-[#0B1527] text-[15px] leading-tight truncate">{day.title}</h3>
+                        <p className="text-[11px] text-slate-400 font-bold mt-1 tracking-tight">{day.date} • {day.items.length} stops</p>
                       </div>
-                      <div className="w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm group-hover:bg-slate-50 transition-colors">
-                        <ChevronDown size={14} className={`text-slate-400 transition-transform duration-300 ${isCollapsed ? "-rotate-90" : ""}`} />
+                      <div className="w-9 h-9 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm group-hover:bg-slate-50 group-hover:border-slate-200 transition-all">
+                        <ChevronDown size={14} className={`text-slate-400 transition-transform duration-500 ${isCollapsed ? "-rotate-90" : ""}`} />
                       </div>
                     </div>
 
@@ -441,7 +813,7 @@ export default function Planner() {
                               >
                                 {day.items.map((item, index) => {
                                   return (
-                                    <Draggable key={item.id} draggableId={item.id} index={index}>
+                                    <Draggable key={item.id} draggableId={item.id} index={index} isDragDisabled={isReadOnly}>
                                       {(provided, snapshot) => (
                                         <div
                                           ref={provided.innerRef}
@@ -453,36 +825,64 @@ export default function Planner() {
                                             } ${selectedPlace?.id === item.id ? "ring-2 ring-sky-400 shadow-md" : ""}`}
                                         >
                                           {/* Image Thumbnail */}
-                                          <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 bg-slate-100 relative shadow-inner">
+                                          <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-slate-100 relative shadow-md group-hover:shadow-lg transition-shadow">
                                             {item.img ? (
-                                              <img src={item.img} alt={item.title} className="w-full h-full object-cover" />
+                                              <img src={item.img} alt={item.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                             ) : (
                                               <div className="w-full h-full flex items-center justify-center text-slate-300">
-                                                <MapPin size={18} />
+                                                <MapPin size={22} />
                                               </div>
                                             )}
                                           </div>
 
                                           {/* Content */}
                                           <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                            <h4 className="font-bold text-slate-800 text-xs truncate leading-tight">{item.title}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                              <span className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-100">
-                                                <Clock size={9} /> {item.time}
-                                              </span>
+                                            <h4 className="font-bold text-[#0B1527] text-[13px] truncate leading-tight group-hover:text-sky-700 transition-colors">{item.title}</h4>
+                                            <div className="flex items-center gap-2 mt-1.5 overflow-visible">
+                                              {editingTimeId === item.id ? (
+                                                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                                  <input
+                                                    type="text"
+                                                    autoFocus
+                                                    className="w-20 px-2 py-0.5 text-[10px] font-bold text-sky-600 bg-white border border-sky-200 rounded-lg outline-none ring-2 ring-sky-50 shadow-sm"
+                                                    defaultValue={item.time}
+                                                    onKeyDown={(e) => {
+                                                      if (e.key === 'Enter') updateItemTime(dayId, item.id, e.target.value);
+                                                      if (e.key === 'Escape') setEditingTimeId(null);
+                                                    }}
+                                                    onBlur={(e) => updateItemTime(dayId, item.id, e.target.value)}
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <span
+                                                  onClick={(e) => {
+                                                    if (!isReadOnly) {
+                                                      e.stopPropagation();
+                                                      setEditingTimeId(item.id);
+                                                    }
+                                                  }}
+                                                  className={`flex items-center gap-1.5 text-[10px] font-bold bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 transition-all ${!isReadOnly ? "text-slate-600 hover:bg-sky-50 hover:border-sky-200 hover:text-sky-600 cursor-pointer" : "text-slate-500"}`}
+                                                >
+                                                  <Clock size={10} className={!isReadOnly ? "text-sky-500" : "text-slate-400"} /> {item.time}
+                                                </span>
+                                              )}
                                             </div>
-                                            <p className="text-[10px] text-slate-400 truncate mt-0.5">{item.location}</p>
+                                            <p className="text-[11px] text-slate-400 truncate mt-1.5 flex items-center gap-1">
+                                              <MapPin size={10} /> {item.location}
+                                            </p>
                                           </div>
 
-                                          <button
-                                            className="opacity-0 group-hover:opacity-100 absolute top-2 right-2 p-1 rounded-full text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // Functionality for delete would go here
-                                            }}
-                                          >
-                                            <Trash2 size={12} />
-                                          </button>
+                                          {!isReadOnly && (
+                                            <button
+                                              className="opacity-0 group-hover:opacity-100 absolute top-2 right-2 p-1 rounded-full text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteItem(dayId, item.id);
+                                              }}
+                                            >
+                                              <Trash2 size={12} />
+                                            </button>
+                                          )}
                                         </div>
                                       )}
                                     </Draggable>
@@ -507,9 +907,15 @@ export default function Planner() {
                   </div>
                 );
               })}
-              <button className="w-full py-3 rounded-2xl border border-dashed border-slate-300 text-slate-400 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-all font-bold text-xs flex items-center justify-center gap-2">
-                <Plus size={14} /> Add Day
-              </button>
+              {!isReadOnly && (
+                <button
+                  onClick={addDay}
+                  className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 hover:text-sky-600 hover:border-sky-300 hover:bg-sky-50 transition-all font-black text-[11px] uppercase tracking-wider flex items-center justify-center gap-2 group mb-6"
+                >
+                  <Plus size={16} className="group-hover:rotate-90 transition-transform duration-300" />
+                  Add Day to Plan
+                </button>
+              )}
             </div>
           </div>
           <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white via-white/90 to-transparent rounded-b-[32px]" />
@@ -694,19 +1100,21 @@ export default function Planner() {
                           <MapPin size={24} />
                         </div>
                         <div>
-                          <h2 className="text-lg font-extrabold text-sky-800">Paris Trip</h2>
-                          <p className="text-xs text-slate-500 font-bold mt-0.5">3 Days • 14.2 km</p>
+                          <h2 className="text-lg font-extrabold text-sky-800">{activeTrip.name}</h2>
+                          <p className="text-xs text-slate-500 font-bold mt-0.5">{dayOrder.length} Days • 14.2 km</p>
                         </div>
                       </div>
 
                       <div className="flex gap-2">
                         <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 flex flex-col items-center">
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Stops</span>
-                          <span className="text-sm font-extrabold text-slate-800">{days["day-1"].items.length + days["day-2"].items.length + days["day-3"].items.length}</span>
+                          <span className="text-sm font-extrabold text-slate-800">
+                            {Object.values(displayDays).reduce((sum, d) => sum + (d?.items?.length || 0), 0)}
+                          </span>
                         </div>
                         <div className="px-4 py-2 bg-slate-50 rounded-xl border border-slate-100 flex flex-col items-center">
                           <span className="text-[10px] font-bold text-slate-400 uppercase">Days</span>
-                          <span className="text-sm font-extrabold text-slate-800">3</span>
+                          <span className="text-sm font-extrabold text-slate-800">{dayOrder.length}</span>
                         </div>
                       </div>
                     </div>
@@ -721,23 +1129,25 @@ export default function Planner() {
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
-          className="bg-white/90 backdrop-blur-xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden h-[calc(100vh-48px)] z-10"
+          className={`bg-white/90 backdrop-blur-xl rounded-[32px] shadow-2xl flex flex-col overflow-hidden h-[calc(100vh-48px)] z-10 transition-all ${isReadOnly ? 'grayscale-[0.5] opacity-60 pointer-events-none' : ''}`}
         >
           {/* Header & Tabs */}
           <div className="p-6 pb-2 shrink-0 bg-white/50 backdrop-blur-md z-20">
-            <h2 className="text-2xl font-bold text-slate-800 mb-4">Explore</h2>
+            <h2 className="text-2xl font-bold text-slate-800 mb-4">Add to Itinerary</h2>
 
             <div className="relative group mb-4">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-sky-500 transition-colors" size={18} />
               <input
                 type="text"
-                placeholder="Search..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search places in ${activeTrip.name.split(' ')[0]}...`}
                 className="w-full bg-white border border-slate-200 rounded-xl pl-12 pr-4 py-3 text-sm font-medium outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 transition-all shadow-sm"
               />
             </div>
 
             <div className="flex bg-slate-100 p-1 rounded-xl">
-              {['saved', 'nearby', 'search'].map(tab => (
+              {['saved', 'nearby'].map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -755,7 +1165,40 @@ export default function Planner() {
           {/* Places List */}
           <div className="flex-1 overflow-y-auto px-4 pb-6 no-scrollbar">
             <div className="space-y-4 pt-2">
-              {(activeTab === "saved" ? savedPlaces : nearbyPlaces).map((place, idx) => (
+              {searchQuery.trim() && (
+                <div className="px-1 mb-2">
+                  <p className="text-[11px] font-bold text-slate-400">
+                    Results for <span className="text-sky-600">“{searchQuery}”</span>
+                  </p>
+                </div>
+              )}
+
+              {/* EMPTY STATE FOR SAVED */}
+              {!searchQuery.trim() && activeTab === "saved" && savedPlaces.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+                    <Star size={18} className="text-slate-300" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800 mb-1">No saved places yet.</h3>
+                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed mb-4">
+                    Save places from Explore to add them here.
+                  </p>
+                  <button
+                    onClick={() => navigate("/explore")}
+                    className="text-[11px] font-bold text-sky-600 hover:text-sky-700 hover:underline transition-all"
+                  >
+                    Go to Explore
+                  </button>
+                </div>
+              )}
+
+              {(searchQuery.trim()
+                ? [...savedPlaces, ...nearbyPlaces].filter(p =>
+                  p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                  p.desc.toLowerCase().includes(searchQuery.toLowerCase())
+                )
+                : (activeTab === "saved" ? savedPlaces : nearbyPlaces)
+              ).map((place, idx) => (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -779,25 +1222,44 @@ export default function Planner() {
                     <div className="flex justify-between items-start mb-1">
                       <h4 className="font-bold text-slate-800 text-sm group-hover:text-sky-600 transition-colors">{place.name}</h4>
                       {/* Add Action */}
-                      <div className="relative group/add" onClick={(e) => e.stopPropagation()}>
-                        <button className="w-8 h-8 bg-sky-50 text-sky-600 rounded-full flex items-center justify-center hover:bg-sky-600 hover:text-white transition-all shadow-sm">
-                          <Plus size={16} />
-                        </button>
-                        <div className="absolute right-0 top-8 bg-white rounded-xl shadow-xl border border-slate-100 p-1 w-28 hidden group-hover/add:block z-50">
-                          {dayOrder.map(id => (
+                      <div className="relative" onClick={(e) => e.stopPropagation()}>
+                        {Object.values(days).some(d => d.items.some(it => it.placeId === place.id)) ? (
+                          <div className="flex items-center gap-2">
+                            {addFeedback?.id === place.id && (
+                              <span className="text-[10px] font-bold text-emerald-600 animate-pulse">
+                                {addFeedback.dayName} ✓
+                              </span>
+                            )}
                             <button
-                              key={id}
-                              onClick={() => addToDay(place, id)}
-                              className="w-full text-left px-2 py-1.5 text-[10px] font-bold text-slate-600 hover:bg-sky-50 hover:text-sky-600 rounded-lg transition-colors"
+                              disabled
+                              className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center cursor-default shadow-sm border border-emerald-100"
                             >
-                              {days[id].title.split(':')[0]}
+                              <Check size={16} />
                             </button>
-                          ))}
-                        </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => setAddingPlace({ place, dayId: dayOrder[0], time: "10:00 AM" })}
+                              className="w-8 h-8 rounded-full flex items-center justify-center transition-all shadow-sm group/btn bg-sky-50 text-sky-600 hover:bg-sky-600 hover:text-white"
+                            >
+                              <Plus size={16} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <p className="text-xs text-slate-500 font-medium line-clamp-2 leading-relaxed">{place.desc}</p>
+
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); navigate("/explore"); }}
+                        className="text-[10px] font-bold text-sky-600 hover:text-sky-700 hover:underline transition-all"
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -806,6 +1268,94 @@ export default function Planner() {
         </motion.div>
 
       </DragDropContext>
+
+      {/* --- ADD PLACE MODAL (ASKING CARD) --- */}
+      <AnimatePresence>
+        {addingPlace && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setAddingPlace(null)}
+              className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl overflow-hidden border border-slate-100"
+            >
+              {/* Header */}
+              <div className="p-6 pb-2">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-2xl bg-sky-50 flex items-center justify-center text-sky-600">
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-800 text-lg">Add to Itinerary</h3>
+                    <p className="text-xs text-slate-400 font-bold uppercase tracking-tight truncate w-48">{addingPlace.place.name}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-6 space-y-5 py-2">
+                {/* Day Selection */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">Select Day</p>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+                    {dayOrder.map(id => (
+                      <button
+                        key={id}
+                        onClick={() => setAddingPlace({ ...addingPlace, dayId: id })}
+                        className={`flex-shrink-0 px-4 py-2 rounded-xl text-[11px] font-black transition-all border ${addingPlace.dayId === id
+                          ? "bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-100"
+                          : "bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300"
+                          }`}
+                      >
+                        {days[id]?.title?.split(':')[0] || "Day"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Time Selection */}
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-1">What Time?</p>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-sky-500 transition-colors">
+                      <Clock size={16} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. 10:00 AM or Evening"
+                      value={addingPlace.time}
+                      onChange={(e) => setAddingPlace({ ...addingPlace, time: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-11 pr-4 text-[13px] font-bold text-slate-700 outline-none ring-offset-0 focus:ring-2 focus:ring-sky-500/10 focus:border-sky-500/40 transition-all shadow-inner"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="p-6 pt-4 flex gap-3">
+                <button
+                  onClick={() => setAddingPlace(null)}
+                  className="flex-1 py-3.5 rounded-2xl bg-slate-50 text-slate-500 text-xs font-black hover:bg-slate-100 transition-all border border-slate-100"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={() => addToDay(addingPlace.place, addingPlace.dayId, addingPlace.time)}
+                  className="flex-[1.5] py-3.5 rounded-2xl bg-sky-600 text-white text-xs font-black hover:bg-sky-700 transition-all shadow-lg shadow-sky-100 active:scale-95"
+                >
+                  CONFIRM ADD
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

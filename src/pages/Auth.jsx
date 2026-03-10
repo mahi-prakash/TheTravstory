@@ -67,7 +67,7 @@ const Auth = () => {
             {/* card header */}
             <div className="mb-6">
               <p className="text-xs font-semibold tracking-[0.22em] uppercase text-sky-600">
-                Travixo account
+                The Trav Story
               </p>
               <h2 className="mt-1 text-2xl md:text-3xl font-bold text-slate-900">
                 Welcome back, nomad.
