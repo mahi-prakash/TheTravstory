@@ -113,82 +113,16 @@ const Quiz = () => {
   };
 
   const handleSubmit = async () => {
-    if (!token) {
-      setError("No authentication token found");
-      return;
-    }
-
     setLoading(true);
     setError("");
 
-    // Calculate initial dynamic preferences
-    let prefs = {
-      nature: 0,
-      social: 0,
-      adventure: 0,
-      relaxation: 0,
-      culture: 0,
-      urban: 0,
-      budget: 0 // Added budget!
-    };
-
-    // Flatten answers in case of arrays from multi-select
-    const ansArray = Object.values(answers).flat();
-
-    // Simple heuristic scoring based on selected options
-    ansArray.forEach(val => {
-      if (typeof val !== 'string') return;
-      if (val === "Relaxed" || val.includes("Peace") || val.includes("Nature")) prefs.relaxation += 2;
-      if (val === "Fast-paced" || val.includes("Adventure")) prefs.adventure += 2;
-      if (val.includes("Nature") || val.includes("Mountains") || val.includes("Beaches")) prefs.nature += 2;
-      if (val.includes("City") || val.includes("Cities")) prefs.urban += 2;
-      if (val.includes("Food") || val.includes("Cultural") || val.includes("Unique") || val.includes("gems")) prefs.culture += 2;
-      if (val.includes("friends") || val.includes("family") || val.includes("Social") || val.includes("partner")) prefs.social += 2;
-
-      if (val.includes("Budget-friendly")) prefs.budget += 3;
-      if (val.includes("Luxury") || val.includes("Comfort")) prefs.budget -= 1;
-    });
-
-    if (prefs.budget < 0) prefs.budget = 0;
-
-    // Determine baseline personality tag based on highest score
-    const highestScore = Object.keys(prefs).reduce((a, b) => prefs[a] > prefs[b] ? a : b);
-    const personalityMap = {
-      nature: "Nature Lover",
-      urban: "City Explorer",
-      culture: "Culture Seeker",
-      relaxation: "Zen Traveler",
-      adventure: "Thrill Seeker",
-      social: "Social Butterfly"
-    };
-    const baselinePersonality = personalityMap[highestScore] || "Balanced Traveler";
-
-    try {
-      const response = await fetch("http://localhost:5000/api/auth/quiz", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          personality: baselinePersonality,
-          preferences: prefs,
-          rawAnswers: answers
-        })
-      });
-
-      if (response.ok) {
-        navigate("/chat");
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || "Failed to submit quiz");
-      }
-    } catch (err) {
-      setError("Network error. Please try again.");
-    } finally {
+    // MVP: Simulate a delay then navigate
+    setTimeout(() => {
       setLoading(false);
-    }
+      navigate("/chat");
+    }, 800);
   };
+
 
   const progress = ((currentStep + 1) / questions.length) * 100;
   const currentQuestion = questions[currentStep];

@@ -21,6 +21,8 @@ import Dropdown from "../components/common/Dropdown";
 import { useJsApiLoader } from "@react-google-maps/api";
 import { fetchPhoto } from "../utils/unsplash";
 
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
 // ─── Dynamic Nearby places from Google ──────────────────────────────────────
 
 export default function Chat() {
@@ -43,17 +45,21 @@ export default function Chat() {
   } = useTrip();
 
   // 🏛️ STATE
-  const [tripData, setTripData] = useState({});
-  const tripDataRef = useRef({});
+  const [tripData, setTripData] = useState(() => {
+    const saved = sessionStorage.getItem("chatData");
+    return saved ? JSON.parse(saved) : {};
+  });
+  const tripDataRef = useRef(tripData);
   const activeTripId = realActiveTripId; // Direct link to context
 
   const setActiveTripId = (id) => {
     setActiveTrip(id);
   };
 
-  // Sync ref with state whenever state changes
+  // Sync ref and sessionStorage with state
   useEffect(() => {
     tripDataRef.current = tripData;
+    sessionStorage.setItem("chatData", JSON.stringify(tripData));
   }, [tripData]);
 
   const updateTripState = (tripId, updates) => {
@@ -112,68 +118,20 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [tripData, activeTripId]);
 
-  // ── Fetch dynamic nearby places ──────────────────────────────────────────
+  // ── Use AI-generated nearby places ─────────────────────────────────────────
   useEffect(() => {
-    if (activeTab !== "nearby" || !isLoaded || !activeTripId) return;
+    if (activeTab !== "nearby" || !activeTripId) return;
 
-    const fetchNearby = async () => {
-      // 1. Get current day's primary location
-      const itinerary = getItinerary();
-      if (!itinerary || !itinerary.days) return;
-
-      const currentDayData = itineraryDays.find(
-        (d, i) => activeDay === "All days" || `Day ${getDayNumber(d, i)}` === activeDay
-      ) || itineraryDays[0];
-
-      const firstActivity = currentDayData?.activities?.[0] || currentDayData?.items?.[0];
-      const locationName = firstActivity?.location || onboardingData.destination;
-
-      if (!locationName) return;
-
-      setIsFetchingNearby(true);
-      console.log("📍 Fetching nearby for:", locationName);
-
-      try {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ address: locationName }, (results, status) => {
-          if (status === "OK" && results[0]) {
-            const location = results[0].geometry.location;
-            const service = new google.maps.places.PlacesService(document.createElement('div'));
-
-            service.nearbySearch(
-              {
-                location: location,
-                radius: 2000,
-                type: ['tourist_attraction', 'cafe', 'restaurant']
-              },
-              (results, status) => {
-                if (status === google.maps.places.PlacesServiceStatus.OK && results) {
-                  const mapped = results.slice(0, 8).map(place => ({
-                    id: place.place_id,
-                    name: place.name,
-                    rating: place.rating,
-                    desc: place.vicinity || "Famous spot nearby",
-                    img: place.photos?.[0]?.getUrl() || `https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=400&auto=format&fit=crop&sig=${place.place_id}`,
-                    coords: [place.geometry.location.lat(), place.geometry.location.lng()]
-                  }));
-                  setNearbyPlacesData(mapped);
-                  if (mapped.length > 0) setActiveNearbyId(mapped[0].id);
-                }
-                setIsFetchingNearby(false);
-              }
-            );
-          } else {
-            setIsFetchingNearby(false);
-          }
-        });
-      } catch (err) {
-        console.error("Error fetching nearby:", err);
-        setIsFetchingNearby(false);
+    const itinerary = getItinerary();
+    if (itinerary && itinerary.nearby_places && itinerary.nearby_places.length > 0) {
+      setNearbyPlacesData(itinerary.nearby_places);
+      if (!activeNearbyId && itinerary.nearby_places[0]) {
+        setActiveNearbyId(itinerary.nearby_places[0].id);
       }
-    };
-
-    fetchNearby();
-  }, [activeTab, activeDay, isLoaded, activeTripId]);
+    } else {
+      setNearbyPlacesData([]);
+    }
+  }, [activeTab, activeTripId, tripData]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const getActiveTripMeta = () => {
@@ -225,10 +183,17 @@ export default function Chat() {
     console.log("📡 Fetching messages for:", tripId);
 
     try {
-      const res = await fetch(`http://localhost:5000/api/messages/${tripId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error("Failed to fetch messages");
+      // In MVP, we don't fetch messages from backend, they are in localStorage
+      console.log("📝 Loading messages from local state for:", tripId);
+
+      const current = tripData[tripId];
+      if (current?.messages) {
+        setTripData(prev => ({
+          ...prev,
+          [tripId]: { ...prev[tripId], messagesFetched: true }
+        }));
+        return;
+      }
       const data = await res.json();
 
       let recoveredItinerary = null;
@@ -243,8 +208,8 @@ export default function Chat() {
           try {
             // 1. Try to extract itinerary data for recovery
             const raw = text.match(/\[ITINERARY\]([\s\S]*?)\[\/ITINERARY\]/i)?.[1] ||
-                        text.match(/\{[\s\S]*"days"[\s\S]*\}/i)?.[0];
-            
+              text.match(/\{[\s\S]*"days"[\s\S]*\}/i)?.[0];
+
             if (raw) {
               const parsed = JSON.parse(raw);
               if (parsed.days) recoveredItinerary = parsed;
@@ -254,7 +219,7 @@ export default function Chat() {
           // 2. ALWAYS Clean the text for display, regardless of parsing success
           text = text
             .replace(/\[ITINERARY\][\s\S]*?\[\/ITINERARY\]/gi, "")
-            .replace(/\[[\w\s]+Itinerary\][\s\S]*?(\{[\s\S]*\})/gi, "") 
+            .replace(/\[[\w\s]+Itinerary\][\s\S]*?(\{[\s\S]*\})/gi, "")
             .replace(/\{[\s\S]*"days"[\s\S]*\}/gi, "")
             .trim();
         }
@@ -264,8 +229,8 @@ export default function Chat() {
 
       // 🔥 LOADING GUARD: Wait for trips to be available before deciding to recover
       if (loading && (!realTrips || realTrips.length === 0)) {
-          console.log("⏳ Waiting for trips to load before checking recovery...");
-          return; 
+        console.log("⏳ Waiting for trips to load before checking recovery...");
+        return;
       }
 
       // 🔥 PRIORITY CHECK: If DB already has a plan, don't overwrite it with recovered history
@@ -306,15 +271,15 @@ export default function Chat() {
     }
   };
 
-  // Trigger fetch when trip changes
+  // Trigger fetch (check) when trip changes
   useEffect(() => {
-    if (activeTripId && token) {
+    if (activeTripId) {
       const current = tripData[activeTripId];
       if (!current?.messagesFetched) {
         fetchMessages(activeTripId);
       }
     }
-  }, [activeTripId, token, loading]);
+  }, [activeTripId, loading]);
 
   // ── Enhance itinerary activities with Unsplash images ─────────────────────
   const enhanceItineraryWithImages = async (itineraryData) => {
@@ -329,7 +294,7 @@ export default function Chat() {
       dayEntries.map(async ([dayKey, day]) => {
         // Handle both 'activities' and 'items' keys
         const activitiesToProcess = day.activities || day.items || [];
-        
+
         const enhancedActivities = await Promise.all(
           activitiesToProcess.map(async (activity) => {
             if (activity.img) return activity;
@@ -347,12 +312,31 @@ export default function Chat() {
       }),
     );
 
+    // ── Enhance nearby places ──
+    let enhancedNearby = itineraryData.nearby_places;
+    if (Array.isArray(enhancedNearby)) {
+      enhancedNearby = await Promise.all(
+        enhancedNearby.map(async (place) => {
+          // Skip if AI provided a real image somehow, but overwrite mock unsplash ones
+          if (place.img && !place.img.includes("1554118811") && !place.img.includes("unsplash.com")) {
+            return place;
+          }
+          const query = `${place.name} ${place.category || ""} ${itineraryData.destination || ""}`.trim();
+          const imageUrl = await fetchPhoto(query);
+          return {
+            ...place,
+            img: imageUrl || "https://images.unsplash.com/photo-1488646953014-85cb44e25828?q=80&w=600&auto=format&fit=crop",
+          };
+        })
+      );
+    }
+
     // If original was an object, return an object. 
     if (!Array.isArray(itineraryData.days)) {
-      return { ...itineraryData, days: Object.fromEntries(enhancedDaysArray) };
+      return { ...itineraryData, days: Object.fromEntries(enhancedDaysArray), nearby_places: enhancedNearby };
     }
-    
-    return { ...itineraryData, days: enhancedDaysArray.map(pair => pair[1]) };
+
+    return { ...itineraryData, days: enhancedDaysArray.map(pair => pair[1]), nearby_places: enhancedNearby };
   };
 
   // ── Send a message (user-typed or auto) ───────────────────────────────────
@@ -468,20 +452,8 @@ export default function Chat() {
       };
     }
 
-    // 🚀 NEW: Save user message to database ONLY if we are not calling the full AI endpoint
-    // (The full AI endpoint already saves the message in the backend)
+    // 🚀 MVP: Skip backend message saving
     const willCallAI = !botReply || nextStage === "GENERATING" || nextStage === "CHAT";
-    
-    if (!willCallAI) {
-      try {
-        console.log("💾 Saving user message (onboarding only)...");
-        await fetch("http://localhost:5000/api/messages/save-only", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ tripId, role: "user", content: text }),
-        });
-      } catch (e) { console.error("Save user msg failed", e); }
-    }
 
     if (botReply && nextStage !== "GENERATING" && nextStage !== "CHAT") {
       updateTripState(tripId, {
@@ -499,15 +471,10 @@ export default function Chat() {
         },
       ]);
 
-      // 🚀 NEW: Save Bot onboarding question to database
-      try {
-        console.log("💾 Saving bot question...");
-        await fetch("http://localhost:5000/api/messages/save-only", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ tripId, role: "assistant", content: botReply.text }),
-        });
-      } catch (e) { console.error("Save bot msg failed", e); }
+      // 🚀 MVP: Skip bot question saving
+      setIsSending(false);
+      setIsGenerating(false);
+      return;
 
       setIsSending(false);
       setIsGenerating(false);
@@ -515,15 +482,19 @@ export default function Chat() {
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/messages", {
+      const res = await fetch(`${API_URL}/messages`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           tripId: tripId,
           content: finalPrompt || text,
+          destination: currentTrip?.collected?.destination || realTrips?.find(t => t.id === tripId)?.destination || "Unknown",
+          history: (currentTrip?.messages || []).map(m => ({
+            role: m.from === "bot" ? "assistant" : "user",
+            content: m.text
+          }))
         }),
       });
 
@@ -537,49 +508,45 @@ export default function Chat() {
 
       let parsedItinerary = null;
 
-      const match = reply.match(/\[ITINERARY\]([\s\S]*?)\[\/ITINERARY\]/i);
-      const fallbackMatch = reply.match(/(\{[\s\S]*"days"[\s\S]*\})/i);
-      const finalMatch = match || fallbackMatch;
-
-      if (finalMatch) {
-        try {
-          let jsonString = finalMatch[1] || finalMatch[0];
-          jsonString = jsonString.trim();
-          const first = jsonString.indexOf("{");
-          const last = jsonString.lastIndexOf("}");
-
-          if (first !== -1 && last !== -1) {
-            jsonString = jsonString.slice(first, last + 1);
-          }
-
+      try {
+        const first = reply.indexOf("{");
+        const last = reply.lastIndexOf("}");
+        if (first !== -1 && last !== -1) {
+          const jsonString = reply.slice(first, last + 1);
           const raw = JSON.parse(jsonString);
-          parsedItinerary = await enhanceItineraryWithImages(raw);
-        } catch (err) {
-          console.error("Itinerary parse error:", err);
+          if (raw.days) {
+            parsedItinerary = await enhanceItineraryWithImages(raw);
+          }
         }
+      } catch (err) {
+        console.error("Itinerary parse error:", err);
       }
 
       // Clean reply: Remove the block AND the tags/brackets
       const cleanReply = reply
         .replace(/\[ITINERARY\][\s\S]*?\[\/ITINERARY\]/gi, "")
-        .replace(/\[[\w\s]+Itinerary\][\s\S]*?(\{[\s\S]*\})/gi, "") 
+        .replace(/\[[\w\s]+Itinerary\][\s\S]*?(\{[\s\S]*\})/gi, "")
         .replace(/\{[\s\S]*"days"[\s\S]*\}/gi, "")
         .trim();
 
       if (cleanReply) {
-        setMessages(tripId, (prev) => [
-          ...prev,
+        const newMessages = [
           {
             id: Date.now() + 2,
             from: "bot",
             text: cleanReply,
-          },
-          {
+          }
+        ];
+
+        if (parsedItinerary) {
+          newMessages.push({
             id: Date.now() + 3,
             from: "bot",
             text: "✨ **Your plan is ready!** I've created a copy in 'Your Plan' that you can now fully customize in the Planner. Feel free to add, remove, or move things around! 🗺️",
-          }
-        ]);
+          });
+        }
+
+        setMessages(tripId, (prev) => [...prev, ...newMessages]);
       }
 
       if (parsedItinerary) {
@@ -1125,75 +1092,15 @@ export default function Chat() {
 
                 <div className="flex items-center gap-2">
                   {/* Trip selector */}
-                  <Dropdown
-                    align="right"
-                    width="w-56"
-                    trigger={
-                      <button className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-slate-200 text-slate-800 text-sm font-semibold hover:border-sky-300 transition shadow-lg shadow-slate-100 outline-none">
-                        <span className="text-slate-400 font-medium mr-1">
-                          Planning:
-                        </span>
-                        {tripMeta?.title || tripMeta?.name || "Select trip"}
-                        <ChevronDown size={14} className="ml-1" />
-                      </button>
-                    }
-                  >
-                    {({ close }) => (
-                      <div className="py-3">
-                        <div className="px-5 py-2.5 text-[10px] font-extrabold text-slate-400 uppercase tracking-widest border-b border-slate-50 mb-2">
-                          Your trips
-                        </div>
-
-                        <div className="max-h-[280px] overflow-y-auto no-scrollbar">
-                          {loading && (
-                            <div className="px-5 py-4 flex items-center gap-3 text-slate-400">
-                              <div className="animate-spin h-4 w-4 border-2 border-sky-600 border-t-transparent rounded-full" />
-                              <span className="text-xs font-semibold">Syncing...</span>
-                            </div>
-                          )}
-
-                          {!loading && (realTrips || []).length === 0 && (
-                            <div className="px-5 py-6 text-center text-slate-400 text-xs font-semibold">
-                              No trips found.
-                            </div>
-                          )}
-
-                          {(realTrips || []).map((trip) => (
-                            <div key={trip.id} className="relative group w-full flex items-center">
-                              <button
-                                onClick={() => {
-                                  setActiveTripId(trip.id);
-                                  close();
-                                }}
-                                className={`w-full px-5 py-3 pr-12 text-left text-[14px] font-bold transition-all flex items-center justify-between ${activeTripId === trip.id
-                                  ? "bg-sky-50 text-sky-600"
-                                  : "text-slate-600 hover:bg-slate-50 hover:text-sky-600"
-                                  }`}
-                              >
-                                <span className="truncate">{trip.title || trip.name}</span>
-                                {activeTripId === trip.id && (
-                                  <div className="h-1.5 w-1.5 rounded-full bg-sky-600 shrink-0" />
-                                )}
-                              </button>
-
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm("Are you sure?")) {
-                                    deleteTrip(trip.id);
-                                    close();
-                                  }
-                                }}
-                                className="absolute right-3 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg opacity-0 group-hover:opacity-100 transition-all z-10"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </Dropdown>
+                  {/* Current Trip Display */}
+                  <div className="flex items-center gap-2 px-5 py-2 rounded-full bg-white border border-slate-200 text-slate-800 text-sm font-semibold shadow-sm shadow-slate-100">
+                    <span className="text-slate-400 font-medium mr-1">
+                      Planning:
+                    </span>
+                    <span className="truncate max-w-[120px]">
+                      {tripMeta?.title || tripMeta?.name || "New Trip"}
+                    </span>
+                  </div>
 
                   {/* New trip */}
                   <button
@@ -1362,17 +1269,11 @@ export default function Chat() {
                               <div className="flex items-center gap-3 mb-4">
                                 <div className="h-px flex-1 bg-slate-100" />
                                 <div className="bg-slate-50 border border-slate-100 px-4 py-1.5 rounded-full flex items-center gap-2">
-                                  <span className="text-[10px] font-extrabold text-sky-600 uppercase tracking-widest">
-                                    Day {getDayNumber(day, dayIdx)}
+
+                                  <span className="text-[11px] font-bold text-sky-600">
+                                    {day.date}
                                   </span>
-                                  {day.date && (
-                                    <>
-                                      <div className="h-1 w-1 rounded-full bg-slate-200" />
-                                      <span className="text-[11px] font-bold text-slate-500">
-                                        {day.date}
-                                      </span>
-                                    </>
-                                  )}
+
                                 </div>
                                 <div className="h-px flex-1 bg-slate-100" />
                               </div>
@@ -1401,7 +1302,7 @@ export default function Chat() {
                                     >
                                       {/* Timeline */}
                                       <div className="flex flex-col items-center">
-                                        <div className="h-4 w-4 rounded-full border-2 border-sky-600 bg-transparent flex items-center justify-center">
+                                        <div className="h-5 w-5 rounded-full border-2 border-sky-600 bg-sky-50 flex items-center justify-center">
                                           {actIdx === 0 && (
                                             <Icon
                                               size={10}
@@ -1429,7 +1330,7 @@ export default function Chat() {
                                             <Icon size={12} /> {activity.time} •{" "}
                                             {activity.type}
                                           </div>
-                                          <div className="font-bold text-[14px] text-slate-800 mt-1">
+                                          <div className="font-bold text-[15px] text-slate-900 mt-1">
                                             {activity.title}
                                           </div>
                                           <div className="text-[11px] text-slate-400 mt-0.5">

@@ -1,5 +1,4 @@
 const Groq = require('groq-sdk');
-const supabase = require('../config/db');
 const logger = require('../utils/logger');
 
 // ─── Groq Load Balancer Setup ───────────────────────────────────────────────
@@ -13,15 +12,11 @@ const groqKeys = [
   process.env.GROQ_API_KEY_7,
   process.env.GROQ_API_KEY_8,
   process.env.GROQ_API_KEY_9,
-].filter(key => key && !key.includes('YOUR_GROQ_KEY')); // Only use real keys
+].filter(key => key && !key.includes('YOUR_GROQ_KEY'));
 
-// Initialize multiple clients
 const groqClients = groqKeys.map(key => new Groq({ apiKey: key }));
 let currentClientIndex = 0;
 
-/**
- * Get the next available Groq client (Round Robin)
- */
 const getNextGroqClient = () => {
   if (groqClients.length === 0) {
     throw new Error("No valid Groq API keys found in .env");
@@ -34,41 +29,10 @@ const getNextGroqClient = () => {
 
 const sendMessage = async (req, res, next) => {
   try {
-    const { tripId, content } = req.body;
-    const userId = req.user.id;
-
-    // 1. Fetch trip context directly (THE SOURCE OF TRUTH)
-    const { data: trip, error: tripError } = await supabase
-      .from('trips')
-      .select('*')
-      .eq('id', tripId)
-      .single();
-
-    if (tripError || !trip) {
-      logger.error('Trip context not found');
-      return res.status(404).json({ message: 'Trip not found. Please create a trip first.' });
-    }
-
-    const destination = trip.destination || 'Unknown';
-
-    // 2. Save user message
-    const { error: saveError } = await supabase
-      .from('messages')
-      .insert([{ trip_id: tripId, user_id: userId, role: 'user', content }]);
-
-    if (saveError) throw saveError;
-
-    // 3. Fetch history
-    const { data: history, error: historyError } = await supabase
-      .from('messages')
-      .select('role, content')
-      .eq('trip_id', tripId)
-      .order('created_at', { ascending: true });
-
-    if (historyError) throw historyError;
+    const { content, destination = 'Unknown', history = [] } = req.body;
 
     const systemPrompt = `
-You are an ELITE Travel Planning Engine for Mahi. 
+You are an ELITE Travel Planning Engine. 
 Destination: ${destination}.
 
 Rules:
@@ -79,6 +43,7 @@ Rules:
 5. Geography: Group by area, minimize travel time.
 6. Allowed types: [SIGHTSEEING, FOOD, HOTEL, ACTIVITY, TRANSPORT, FLIGHT].
 7. JSON: Strictly follow the format inside [ITINERARY] tags.
+8. Nearby Places: Generate 3-5 recommended nearby places (cafes, attractions) in the "nearby_places" array. Include fake coordinates (lat, lng) close to the destination.
 
 Format:
 [ITINERARY]
@@ -88,49 +53,68 @@ Format:
       "day": 1,
       "activities": [
         { "time": "10:00", "type": "FLIGHT", "title": "Arrival", "location": "Airport" },
-        { "time": "11:30", "type": "TRANSPORT", "title": "Cab", "location": "Airport to Hotel", "price_range": "₹500" },
         { "time": "13:00", "type": "HOTEL", "title": "Hotel", "location": "Area", "price_range": "₹5000", "booking_hint": "Nice view" }
       ]
-  }]
+  }],
+  "nearby_places": [
+    {
+      "id": "ai-near-1",
+      "name": "Local Cafe",
+      "type": "food",
+      "rating": 4.8,
+      "aiMatchScore": 95,
+      "coords": [48.8541, 2.3331],
+      "category": "Food",
+      "cost": "₹500",
+      "duration": "1h",
+      "bestTime": "Morning",
+      "tags": ["Coffee", "Local"],
+      "desc": "A great local spot."
+    }
+  ]
 }
 [/ITINERARY]
 
 Response Rules:
-1. If asked for a plan/itinerary: Friendly greeting to Mahi, 2-4 lines of travel insights, brief "Trip Flow" reasoning, then the [ITINERARY] block.
+1. If asked for a plan/itinerary: Friendly greeting, 2-4 lines of travel insights, brief "Trip Flow" reasoning, then the [ITINERARY] block.
 2. If just chatting/asking questions: Talk normally and helpfully without the [ITINERARY] block.
-3. Keep all responses concise to save tokens.
+3. Keep all responses concise to save tokens until asked not to(IMPORTANT)
 `;
 
-    const messages = [
+    const chatMessages = [
       { role: "system", content: systemPrompt },
-      ...history.slice(-6).map((msg) => {
-        // 🔥 TOKEN OPTIMIZATION: Strip large JSON blocks from history
-        // The AI doesn't need to see the raw JSON it generated 5 messages ago.
-        let content = msg.content;
-        if (msg.role === "assistant") {
-          content = content.replace(/\[ITINERARY\][\s\S]*?\[\/ITINERARY\]/gi, " (Itinerary data omitted for brevity) ");
-        }
-        
-        return {
-          role: msg.role === "assistant" ? "assistant" : "user",
-          content: content,
-        };
-      })
+      ...history.map(msg => ({
+        role: msg.role === "assistant" ? "assistant" : "user",
+        content: msg.content.replace(/\[ITINERARY\][\s\S]*?\[\/ITINERARY\]/gi, " (Itinerary data omitted) ")
+      })),
+      { role: "user", content }
     ];
 
-    const selectedGroq = getNextGroqClient();
-    const response = await selectedGroq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages,
-      max_tokens: 3000,
-      temperature: 0.2,
-    });
+    let aiReply = null;
+    let attempts = 0;
+    const maxAttempts = groqClients.length;
 
-    const aiReply = response.choices[0].message.content;
+    while (attempts < maxAttempts) {
+      try {
+        const selectedGroq = getNextGroqClient();
+        const response = await selectedGroq.chat.completions.create({
+          model: "llama-3.1-8b-instant",
+          messages: chatMessages,
+          max_tokens: 3000,
+          temperature: 0.2,
+        });
 
-    await supabase
-      .from('messages')
-      .insert([{ trip_id: tripId, user_id: userId, role: 'assistant', content: aiReply }]);
+        aiReply = response.choices[0].message.content;
+        break; // Success! Exit the loop.
+      } catch (err) {
+        attempts++;
+        logger.warn(`⚠️ Groq key failed (${err.message}). Retrying... (${attempts}/${maxAttempts})`);
+
+        if (attempts >= maxAttempts) {
+          throw new Error("All Groq API keys are restricted or exhausted. Please check your .env keys.");
+        }
+      }
+    }
 
     res.status(200).json({ reply: aiReply });
 
@@ -140,44 +124,12 @@ Response Rules:
   }
 };
 
-const getMessages = async (req, res, next) => {
-  try {
-    const { trip_id } = req.params;
-
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('trip_id', trip_id)
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-
-    res.status(200).json({ messages: data });
-  } catch (error) {
-    next(error);
-  }
+const getMessages = async (req, res) => {
+  res.status(200).json({ messages: [] });
 };
 
-const saveOnlyMessage = async (req, res, next) => {
-  try {
-    const { tripId, content, role } = req.body;
-    const userId = req.user.id;
-
-    const { data, error } = await supabase
-      .from('messages')
-      .insert([{ trip_id: tripId, user_id: userId, role: role || 'user', content }])
-      .select();
-
-    if (error) {
-      logger.error('SAVE_ONLY_ERROR:', error);
-      throw error;
-    }
-
-    res.status(201).json({ message: 'Saved successfully', data });
-  } catch (error) {
-    logger.error('SAVE_ONLY_CATCH:', error);
-    next(error);
-  }
+const saveOnlyMessage = async (req, res) => {
+  res.status(200).json({ message: 'No-op in MVP' });
 };
 
 module.exports = { sendMessage, getMessages, saveOnlyMessage };

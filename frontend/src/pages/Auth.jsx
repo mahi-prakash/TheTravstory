@@ -4,7 +4,6 @@ import Button from "../components/common/Button";
 import Card from "../components/common/Card";
 import { useNavigate } from "react-router-dom";
 import { useUser } from "../context/UserContext";
-import { supabase } from "../config/supabase";
 
 const Auth = () => {
   const navigate = useNavigate();

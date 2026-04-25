@@ -21,15 +21,16 @@ const App = () => {
     <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/auth" element={<Auth />} />
         <Route path="/quiz" element={<Quiz />} />
         <Route element={<MainLayout />}>
           <Route path="/explore" element={<Explore />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/bookings" element={<Bookings />} />
-          <Route path="/planner/:tripId?" element={<Planner />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/planner/:tripId?" element={<Planner />} />
+
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );

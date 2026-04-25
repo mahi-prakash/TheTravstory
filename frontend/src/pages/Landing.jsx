@@ -255,21 +255,15 @@ const Landing = () => {
 
   // If already logged in, redirect to app automatically
   useEffect(() => {
-    if (token && user) {
-      if (user.quiz_completed) {
-        navigate("/chat");
-      } else {
-        navigate("/quiz");
-      }
-    }
-  }, [token, user, navigate]);
+    // MVP: No automatic redirection based on auth
+  }, [navigate]);
+
 
 
 
   const handleGoToAuth = () => {
-    console.log("✅ BUTTON CLICKED");
-    if (isTransitioning) return;
-    setIsTransitioning(true);
+    console.log("✅ REDIRECTING TO PLANNER");
+    navigate("/chat");
   };
 
 
@@ -598,7 +592,8 @@ const Landing = () => {
       </section>
 
       {isTransitioning && (
-        <TransitionOverlay onFinished={() => navigate("/auth")} />
+        <TransitionOverlay onFinished={() => navigate("/chat")} />
+
       )}
 
 

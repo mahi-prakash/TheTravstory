@@ -1,343 +1,1218 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from 'react';
 import { motion } from "framer-motion";
-import { MapPin, Settings, UserPlus, Heart } from "lucide-react";
+import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { Plane, Bookmark, Award, Globe, Pen, Camera, Globe2, MapPin, Calendar, ClipboardList, Plus, Heart, Settings, ShieldCheck, ChevronRight, BookOpen, Sun, Utensils, Compass, Send } from "lucide-react";
 import { useUser } from "../context/UserContext";
-import { useTrip } from "../context/TripContext";
 
-const Profile = () => {
-  const { user } = useUser();
-  const { trips } = useTrip();
-  const [activeTab, setActiveTab] = useState("Trips");
-  const [isTabsSticky, setIsTabsSticky] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const tabsRef = useRef(null);
-  const cardRef = useRef(null);
-  const bannerRef = useRef(null);
+const LIBRARIES = ['places'];
 
-  // Sticky tabs detection + scroll progress tracking
-  useEffect(() => {
-    const handleScroll = () => {
-      if (tabsRef.current && cardRef.current) {
-        const cardRect = cardRef.current.getBoundingClientRect();
-        const tabsRect = tabsRef.current.getBoundingClientRect();
-        setIsTabsSticky(tabsRect.top <= cardRect.top + 20);
-      }
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%',
+  borderRadius: '20px'
+};
 
-      // Track scroll progress for banner fade effect
-      if (bannerRef.current) {
-        const bannerRect = bannerRef.current.getBoundingClientRect();
-        const bannerHeight = bannerRef.current.offsetHeight;
-        const scrolled = Math.max(0, -bannerRect.top);
-        const progress = Math.min(1, scrolled / bannerHeight);
-        setScrollProgress(progress);
-      }
-    };
+const defaultCenter = {
+  lat: 20,
+  lng: 0
+};
 
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+const ProfileDashboard = ({ user }) => {
+  const [activeNav, setActiveNav] = useState('Profile');
+  const [activeTab, setActiveTab] = useState('Overview');
+
+  const navItems = ['Chat', 'Planner', 'Bookings', 'Explore', 'Profile'];
+  const profileTabs = ['Overview', 'My Trips', 'Memories', 'Settings'];
+
+  // Bucket list state for interactivity
+  const [bucketList, setBucketList] = useState(user.bucketList);
+  const [newBucketItem, setNewBucketItem] = useState('');
+
+  // Journal State
+  const [isWritingJournal, setIsWritingJournal] = useState(false);
+  const [journalEntry, setJournalEntry] = useState('');
+  const [savedJournal, setSavedJournal] = useState(null);
+
+  // Google Maps API Loader
+  const { isLoaded } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: LIBRARIES
+  });
+
+  const toggleBucketList = (id) => {
+    setBucketList(bucketList.map(item =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    ));
+  };
+
+  const handleAddBucketItem = (e) => {
+    e.preventDefault();
+    if (!newBucketItem.trim()) return;
+    setBucketList([...bucketList, { id: Date.now(), place: newBucketItem, completed: false }]);
+    setNewBucketItem('');
+  };
+
+  const handleSaveJournal = () => {
+    if (journalEntry.trim()) {
+      setSavedJournal(journalEntry);
+    } else {
+      setSavedJournal(null);
+    }
+    setIsWritingJournal(false);
+  };
+
+  // Handlers for dynamic actions
+  const handleEditProfile = () => alert("Edit Profile Clicked");
+  const handleUpdateAvatar = () => alert("Update Avatar Clicked");
+  const handlePrivacySettings = () => alert("Privacy & Security Clicked");
+  const handleLike = (title) => alert(`Liked ${title}!`);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 py-6 px-4 sm:px-6 lg:px-8">
-      {/* CENTERED CARD CONTAINER */}
-      <div
-        ref={cardRef}
-        className="max-w-5xl mx-auto bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/50 overflow-hidden"
-      >
-        {/* --- CINEMATIC BANNER --- */}
-        <motion.div
-          ref={bannerRef}
-          className="w-full h-96 relative overflow-hidden"
-          style={{
-            opacity: 1 - scrollProgress * 0.3,
-          }}
-        >
-          <img
-            src="https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?q=80&w=2021&auto=format&fit=crop"
-            alt="Cover"
-            className="w-full h-full object-cover transition-transform duration-700"
-            style={{
-              transform: `scale(${1 + scrollProgress * 0.1})`,
-            }}
-          />
-          {/* Enhanced Gradient Overlay with scroll-based darkening */}
-          <motion.div
-            className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent transition-all duration-500"
-            style={{
-              opacity: 1 + scrollProgress * 0.4,
-            }}
-          />
-        </motion.div>
+    <div className="dashboard-wrapper">
+      <style>{`
+        :root {
+            --primary-blue: #0081C9;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --text-light: #94a3b8;
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --font-main: 'Inter', sans-serif;
+            --blue-light: #f0f9ff;
+            --blue-dark: #0081C9;
+            --red-light: #fef2f2;
+            --red-dark: #ef4444;
+            --red-accent: #f87171;
+            --yellow-light: #fefce8;
+            --yellow-dark: #eab308;
+            --green-light: #f0fdf4;
+            --green-dark: #22c55e;
+            --purple-light: #faf5ff;
+            --purple-dark: #a855f7;
+        }
+        .dashboard-wrapper {
+            font-family: var(--font-main);
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 2rem 4rem 2rem;
+        }
+        .cover-banner {
+            position: relative;
+            height: 280px;
+            border-radius: 32px;
+            background-size: cover;
+            background-position: center;
+            margin-bottom: 2rem;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+        .cover-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to right, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.2) 100%);
+        }
+        .btn-edit-profile {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.75rem 1.25rem;
+            border-radius: 16px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-family: inherit;
+            z-index: 10;
+        }
+        .btn-edit-profile:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+        .banner-content {
+            position: absolute;
+            bottom: 2.5rem;
+            left: 2.5rem;
+            display: flex;
+            align-items: flex-end;
+            gap: 1.75rem;
+            z-index: 10;
+        }
+        .profile-avatar-wrapper {
+            position: relative;
+        }
+        .main-avatar {
+            width: 128px;
+            height: 128px;
+            border-radius: 28px;
+            border: 5px solid white;
+            object-fit: cover;
+            background: white;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .btn-camera {
+            position: absolute;
+            bottom: -5px;
+            right: -5px;
+            background-color: var(--primary-blue);
+            color: white;
+            border: 4px solid white;
+            width: 40px;
+            height: 40px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-camera:hover {
+            transform: scale(1.1);
+        }
+        .profile-info {
+            color: white;
+            padding-bottom: 0.75rem;
+        }
+        .profile-name {
+            font-size: 2.5rem;
+            font-weight: 900;
+            margin: 0 0 0.25rem 0;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            letter-spacing: -0.025em;
+        }
+        .profile-meta {
+            font-size: 0.95rem;
+            font-weight: 600;
+            opacity: 0.95;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+        .profile-tabs-container {
+            display: flex;
+            justify-content: center;
+            gap: 2.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            margin-bottom: 3rem;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .profile-tab {
+            background: none;
+            border: none;
+            font-family: inherit;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #64748b;
+            padding: 0 0.25rem 0.75rem 0.25rem;
+            cursor: pointer;
+            position: relative;
+            transition: color 0.3s ease;
+        }
+        .profile-tab:hover {
+            color: #0f172a;
+        }
+        .profile-tab.active {
+            color: var(--primary-blue);
+        }
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr 1fr;
+            grid-auto-rows: minmax(min-content, max-content);
+            gap: 2rem;
+        }
+        .sidebar-column, .main-column, .grid-2-cols {
+            display: contents;
+        }
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 32px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.03);
+            border: 1px solid #f1f5f9;
+        }
+        .flex-col-card {
+            display: flex;
+            flex-direction: column;
+        }
+        .card-title {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            letter-spacing: 0.1em;
+            font-weight: 800;
+            margin-bottom: 1.75rem;
+            margin-top: 0;
+            text-transform: uppercase;
+        }
+        .mt-auto { margin-top: auto; }
+        .mt-4 { margin-top: 1.5rem; }
+        .stats-card { 
+            grid-column: 1; 
+            grid-row: 1; 
+            position: relative;
+            overflow: hidden;
+            background-size: cover;
+            background-position: center;
+            background-image: url('https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=800&auto=format&fit=crop');
+        }
+        .stats-overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.95) 100%);
+            z-index: 1;
+        }
+        .stats-content {
+            position: relative;
+            z-index: 2;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .upcoming-trip-card { grid-column: 2 / 4; grid-row: 1; }
+        .badges-card { grid-column: 1; grid-row: 2; }
+        .map-card { grid-column: 2; grid-row: 2 / 4; }
+        .bucketlist-card { grid-column: 3; grid-row: 2 / 4; }
+        .journal-card { grid-column: 1; grid-row: 3; }
+        .full-span-card {
+            grid-column: 2 / 4;
+            grid-row: 1 / 4;
+        }
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+        .stat-icon-wrapper {
+            width: 52px;
+            height: 52px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            background: white;
+            border: 1.5px solid var(--primary-blue);
+            box-shadow: 0 4px 12px rgba(0, 129, 201, 0.08);
+        }
+        .bg-blue-light { background-color: #f0f9ff; }
+        .text-blue { color: #0081C9; }
+        .bg-red-light { background-color: #fef2f2; }
+        .text-red { color: #ef4444; }
+        .text-red-accent { color: #f87171; }
+        .bg-yellow-light { background-color: #fefce8; }
+        .text-yellow { color: #eab308; }
+        .bg-green-light { background-color: #f0fdf4; }
+        .text-green { color: #22c55e; }
+        .stat-name {
+            flex-grow: 1;
+            font-weight: 700;
+            color: #475569;
+            font-size: 0.95rem;
+        }
+        .stat-value {
+            font-weight: 800;
+            font-size: 1.15rem;
+            color: var(--text-main);
+            letter-spacing: -0.01em;
+        }
+        .badges-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: space-between;
+        }
+        .badge-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .badge-item:hover { transform: translateY(-3px); }
+        .badge-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            background: white;
+            border: 1.5px solid var(--primary-blue);
+            box-shadow: 0 4px 12px rgba(0, 129, 201, 0.08);
+            color: var(--primary-blue);
+        }
+        .badge-name {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #64748b;
+            text-align: center;
+            max-width: 80px;
+        }
+        .card-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 900;
+            margin: 0;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--primary-blue);
+            font-weight: 800;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .trip-banner {
+            position: relative;
+            border-radius: 28px;
+            background-size: cover;
+            background-position: center;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .trip-banner:hover { transform: translateY(-4px); box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.15); }
+        .trip-banner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0.2) 60%, transparent 100%);
+        }
+        .weather-widget {
+            position: absolute;
+            top: 1.25rem;
+            right: 1.25rem;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+        .trip-banner-content {
+            position: absolute;
+            bottom: 2rem;
+            left: 2rem;
+            color: white;
+            width: calc(100% - 4rem);
+        }
+        .trip-header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        .trip-status {
+            background-color: #22c55e;
+            padding: 0.35rem 0.85rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .trip-countdown {
+            font-size: 0.85rem;
+            font-weight: 700;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 0.35rem 0.85rem;
+            border-radius: 12px;
+            backdrop-filter: blur(4px);
+        }
+        .trip-banner-content h3 {
+            margin: 0 0 0.4rem 0;
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+        }
+        .trip-banner-content p {
+            margin: 0;
+            font-size: 1rem;
+            opacity: 0.95;
+            font-weight: 500;
+        }
+        .icon-large { font-size: 1.75rem; }
+        .map-placeholder {
+            border-radius: 24px;
+            overflow: hidden;
+            border: 1px solid #f1f5f9;
+        }
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: #64748b;
+        }
+        .progress-bar-container {
+            height: 14px;
+            background-color: #f1f5f9;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #f1f5f9;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(to right, #0081C9, #6366f1);
+            border-radius: 8px;
+        }
+        .bucket-list {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+            max-height: 280px;
+            padding-right: 0.5rem;
+        }
+        .bucket-item {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            border-radius: 16px;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+            border: 1px solid #f1f5f9;
+        }
+        .bucket-item:hover { background: #f1f5f9; border-color: #e2e8f0; }
+        .checkbox {
+            width: 24px;
+            height: 24px;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.8rem;
+            background: white;
+        }
+        .checkbox.checked {
+            background-color: var(--primary-blue);
+            border-color: var(--primary-blue);
+            box-shadow: 0 4px 6px -1px rgba(0, 129, 201, 0.3);
+        }
+        .bucket-item.completed span {
+            text-decoration: line-through;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .bucket-item span {
+            font-weight: 700;
+            color: var(--text-main);
+            font-size: 0.95rem;
+        }
+        .add-bucket-form { display: flex; gap: 0.75rem; }
+        .bucket-input {
+            flex-grow: 1;
+            padding: 0.85rem 1.25rem;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            outline: none;
+            transition: all 0.2s;
+            background: #f8fafc;
+        }
+        .bucket-input:focus {
+            border-color: var(--primary-blue);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(0, 129, 201, 0.1);
+        }
+        .bucket-submit-btn {
+            background: white;
+            color: var(--primary-blue);
+            border: 1.5px solid var(--primary-blue);
+            border-radius: 16px;
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 129, 201, 0.08);
+        }
+        .bucket-submit-btn:hover { 
+            background: var(--blue-light);
+            transform: translateY(-2px); 
+        }
+        .trips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+        .memory-card {
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .memory-card:hover { transform: translateY(-5px); }
+        .memory-img-wrapper {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            overflow: hidden;
+        }
+        .memory-img-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+        .memory-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-end;
+            padding: 1rem;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .memory-card:hover .memory-overlay { opacity: 1; }
+        .like-btn {
+            background: white;
+            color: var(--red-dark);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .memory-info {
+            padding: 1.25rem;
+            background: white;
+        }
+        .memory-info-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .memory-info-top h4 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        .likes-count {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .memory-info p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .gallery-masonry {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            grid-auto-rows: 250px;
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        .gallery-item {
+            position: relative;
+            border-radius: 24px;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+        .gallery-item:hover { transform: translateY(-5px); }
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s;
+        }
+        .gallery-item-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 2rem 1.5rem 1.5rem 1.5rem;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+            display: flex;
+            flex-direction: column;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .gallery-item:hover .gallery-item-overlay { opacity: 1; }
+        .gallery-title { font-weight: 800; font-size: 1.1rem; margin-bottom: 0.25rem; }
+        .gallery-location { font-size: 0.8rem; opacity: 0.9; }
+        .settings-title {
+            font-size: 1.5rem;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 0 0 2.5rem 0;
+            color: var(--text-main);
+            letter-spacing: -0.02em;
+        }
+        .settings-fields-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+        .settings-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .settings-field label {
+            font-size: 0.75rem;
+            font-weight: 800;
+            color: #64748b;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        .input-box {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            background-color: #f8fafc;
+            border-radius: 18px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+        .input-box:focus-within {
+            border-color: var(--primary-blue);
+            background: white;
+            box-shadow: 0 0 0 4px rgba(0, 129, 201, 0.1);
+        }
+        .input-box input {
+            border: none;
+            background: transparent;
+            font-family: inherit;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--text-main);
+            width: 100%;
+            outline: none;
+        }
+        .bg-blue-tint {
+            background-color: #f0f9ff;
+            border-color: #e0f2fe;
+        }
+        .vibe-text {
+            font-weight: 800;
+            color: #0081C9;
+            font-size: 1rem;
+        }
+        .privacy-section {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1.75rem;
+            background-color: #f8fafc;
+            border-radius: 28px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #f1f5f9;
+        }
+        .privacy-section:hover { background-color: white; border-color: var(--primary-blue); transform: translateY(-2px); box-shadow: 0 10px 20px -10px rgba(0, 129, 201, 0.2); }
+        .privacy-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            background-color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            color: #64748b;
+        }
+        .privacy-info { flex-grow: 1; }
+        .privacy-info h4 { margin: 0 0 0.35rem 0; font-size: 1.1rem; font-weight: 800; color: var(--text-main); }
+        .privacy-info p { margin: 0; font-size: 0.9rem; color: #64748b; font-weight: 500; }
 
-        {/* --- PROFILE CONTENT --- */}
-        <div className="relative px-10 pb-20 pt-4">
-          {/* AVATAR - Enhanced with more breathing room */}
-          <div className="flex justify-center mb-8 -mt-24">
-            <div className="w-48 h-48 rounded-full border-8 border-white/90 shadow-2xl overflow-hidden bg-gradient-to-br from-white/90 to-slate-50/50 backdrop-blur-sm">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=1000&auto=format&fit=crop"
-                alt={user.name}
-                className="w-full h-full object-cover"
-              />
+        @media (max-width: 900px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+            .stats-card, .upcoming-trip-card, .badges-card, .map-card, .bucketlist-card, .journal-card, .full-span-card {
+                grid-column: 1 / -1;
+                grid-row: auto;
+            }
+            .settings-fields-row { grid-template-columns: 1fr; }
+        }
+      `}</style>
+
+
+      <main className="dashboard-container">
+        {/* Cover Banner Section */}
+        <section className="cover-banner" style={{ backgroundImage: `url(${user.coverImage})` }}>
+          <div className="cover-overlay"></div>
+
+          <button className="btn-edit-profile" onClick={handleEditProfile}>
+            <i className="fa-solid fa-pen"></i> Edit Profile
+          </button>
+
+          <div className="banner-content">
+            <div className="profile-avatar-wrapper">
+              <img src={user.avatarImage} alt={user.profileName} className="main-avatar" />
+              <button className="btn-camera" onClick={handleUpdateAvatar} aria-label="Update avatar">
+                <i className="fa-solid fa-camera"></i>
+              </button>
+            </div>
+
+            <div className="profile-info">
+              <h1 className="profile-name">{user.profileName}</h1>
+              <p className="profile-meta">
+                <i className="fa-solid fa-location-dot text-red-accent"></i> {user.location} &middot; {user.joinedDate}
+              </p>
             </div>
           </div>
+        </section>
 
-          {/* IDENTITY - More spacious */}
-          <div className="text-center space-y-4 mb-8">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent tracking-tight">
-              {user.name}
-            </h1>
-            <div className="flex items-center justify-center gap-2 text-slate-500 font-medium">
-              <MapPin size={18} />
-              <span className="text-lg">{user.basedIn || "Global Citizen"}</span>
-            </div>
-            <p className="text-slate-600 max-w-2xl mx-auto text-xl leading-relaxed font-light">
-              Collector of sunsets and passport stamps. Traveling to find the places that make me feel small. 🌿✨
-            </p>
-          </div>
-
-          {/* STATS ROW - Perfectly centered & balanced */}
-          <div className="flex items-end justify-center gap-8 py-6 border-y border-slate-100/50 mb-12 px-8">
-            {[
-              { value: user.stats?.trips || 12, label: "Trips" },
-              { value: user.stats?.savedSpots || 148, label: "Saved" },
-              { value: "8.5k", label: "Followers" },
-              { value: "342", label: "Following" }
-            ].map((stat, index) => (
-              <div key={stat.label} className="text-center group cursor-pointer flex-1 min-w-[80px]">
-                <motion.p
-                  className="text-3xl font-black text-slate-900 mb-2 group-hover:scale-105 transition-transform"
-                  whileHover={{ y: -4 }}
-                >
-                  {stat.value}
-                </motion.p>
-                <p className="text-xs uppercase tracking-widest text-slate-400 font-bold group-hover:text-slate-600 transition-colors">
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* ACTION BUTTONS - Enhanced spacing */}
-          <div className="flex items-center justify-center gap-6 mb-8">
-            <motion.button
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
-              className="bg-gradient-to-r from-slate-900 to-slate-800 text-white font-semibold px-10 h-14 rounded-2xl shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:from-slate-800 hover:to-slate-700 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 text-lg"
+        {/* Dynamic Profile Tabs */}
+        <div className="profile-tabs-container">
+          {profileTabs.map(tab => (
+            <button
+              key={tab}
+              className={`profile-tab ${activeTab === tab ? 'active' : ''}`}
+              onClick={() => setActiveTab(tab)}
             >
-              <Settings size={18} />
-              Edit Profile
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className="h-14 w-14 flex items-center justify-center bg-white/80 backdrop-blur-sm border-2 border-slate-200/50 rounded-2xl hover:bg-white/100 hover:border-slate-300 shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              <UserPlus size={20} className="text-slate-700" />
-            </motion.button>
-          </div>
+              {tab}
+              {activeTab === tab && (
+                <motion.div
+                  layoutId="profileTabIndicator"
+                  style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: '2px',
+                    backgroundColor: 'var(--primary-blue)',
+                    borderRadius: '9999px'
+                  }}
+                  initial={false}
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              )}
+            </button>
+          ))}
+        </div>
 
-          {/* STICKY NAVIGATION TABS */}
-          <div
-            ref={tabsRef}
-            className={`sticky-nav-wrapper transition-all duration-300 ${isTabsSticky
-              ? 'bg-white/95 backdrop-blur-md border-b border-slate-100 shadow-sm py-2 top-0 z-20'
-              : 'border-b border-slate-100/50 mb-20 pb-8'
-              }`}
-          >
-            <div className="flex items-center justify-center gap-16 max-w-2xl mx-auto">
-              {["Trips", "Saved", "Reviews", "Highlights"].map((tab) => (
-                <motion.button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className="relative px-4 py-3 text-lg font-semibold transition-all duration-300 group"
-                  whileHover={{ y: -2 }}
-                >
-                  <span className={`block transition-colors duration-200 ${activeTab === tab
-                    ? "text-slate-900 font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent"
-                    : "text-slate-500 hover:text-slate-700"
-                    }`}>
-                    {tab}
-                  </span>
-                  {activeTab === tab && (
-                    <motion.div
-                      layoutId="activeTab"
-                      className="absolute bottom-0 left-1/2 -translate-x-1/2 h-[3px] bg-gradient-to-r from-slate-900 to-slate-700 rounded-full w-8"
-                      transition={{ type: "spring", bounce: 0.3 }}
-                    />
-                  )}
-                </motion.button>
-              ))}
-            </div>
-          </div>
+        {/* Dashboard Perfect Grid Layout */}
+        <div className="dashboard-grid">
 
-          {/* TABS CONTENT - Enhanced spacing & layout */}
-          <div className="space-y-12">
-            {activeTab === "Trips" && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-4xl mx-auto">
-                {[
-                  {
-                    image: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?q=80&w=900&auto=format&fit=crop",
-                    title: "Summer in Santorini",
-                    location: "Santorini, Greece",
-                    dates: "June 15-22, 2024",
-                    description: "Exploring the white-washed villages and stunning sunsets of the Greek islands."
-                  },
-                  {
-                    image: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=900&auto=format&fit=crop",
-                    title: "Tokyo Adventures",
-                    location: "Tokyo, Japan",
-                    dates: "March 10-20, 2024",
-                    description: "Immersing in the vibrant culture, incredible food, and neon-lit streets of Japan's capital."
-                  },
-                  {
-                    image: "https://images.unsplash.com/photo-1526392060635-9d6019884377?q=80&w=900&auto=format&fit=crop",
-                    title: "Swiss Alps Retreat",
-                    location: "Zermatt, Switzerland",
-                    dates: "December 5-12, 2023",
-                    description: "Skiing through pristine powder and enjoying cozy mountain chalets with breathtaking views."
-                  },
-                  {
-                    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTa4aJi17NAsUj1b8ktlrRUoIN5gP-i_ykKrA&s",
-                    title: "Bali Escape",
-                    location: "Ubud, Bali",
-                    dates: "August 1-10, 2023",
-                    description: "Finding peace in rice terraces, ancient temples, and traditional Balinese culture."
-                  },
-                  {
-                    image: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQtOGVgK5DXm2PHmmGDz6VVoBu39iuB17-wbQ&s",
-                    title: "Parisian Dreams",
-                    location: "Paris, France",
-                    dates: "May 1-7, 2023",
-                    description: "Wandering through charming streets, world-class museums, and iconic landmarks."
-                  }
-                ].map((trip, index) => (
-                  <motion.div
-                    key={`trip-${index}`}
-                    className="group relative overflow-hidden rounded-3xl bg-white/70 backdrop-blur-md border border-white/40 shadow-sm hover:shadow-lg hover:bg-white/80 transition-all duration-500 cursor-pointer"
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    whileHover={{ y: -6 }}
-                  >
-                    {/* Unified Image Block with All Content */}
-                    <div className="relative aspect-[4/3] overflow-hidden">
-                      <img
-                        src={trip.image}
-                        alt={trip.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-110"
-                      />
+          {/* Left Sidebar (participates in display: contents) */}
+          <div className="sidebar-column">
 
-                      {/* Softer Cinematic Gradient - Bottom 40% Only */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 via-60% to-transparent" />
-
-                      {/* All Content Overlaid on Image */}
-                      <div className="absolute bottom-0 left-0 right-0 p-7">
-                        <h3 className="text-3xl font-bold text-white mb-3 drop-shadow-lg">
-                          {trip.title}
-                        </h3>
-                        <div className="flex items-center gap-1.5 text-white/75 mb-1.5">
-                          <MapPin size={14} className="flex-shrink-0" />
-                          <span className="text-sm font-medium">{trip.location}</span>
-                        </div>
-                        <p className="text-xs text-white/60 font-medium mb-2.5">{trip.dates}</p>
-
-                        {/* Description inside image */}
-                        <p className="text-xs text-white/65 leading-relaxed line-clamp-2 font-light">
-                          {trip.description}
-                        </p>
-                      </div>
+            {/* Row 1, Col 1 */}
+            <section className="card stats-card flex-col-card">
+              <div className="stats-overlay"></div>
+              <div className="stats-content">
+                <h3 className="card-title">QUICK STATS</h3>
+                <div className="stats-list" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', flexGrow: 1 }}>
+                  <div className="stat-row">
+                    <div className="stat-icon-wrapper">
+                      <Plane size={24} className="text-[#0081C9]" />
                     </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-
-            {activeTab === "Saved" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
-                {[
-                  { name: "Eiffel Tower", location: "Paris, France", image: "https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Santorini Sunset", location: "Santorini, Greece", image: "https://images.unsplash.com/photo-1613395877344-13d4a8e0d49e?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Tokyo Tower", location: "Tokyo, Japan", image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Grand Canyon", location: "Arizona, USA", image: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Machu Picchu", location: "Cusco, Peru", image: "https://images.unsplash.com/photo-1587595431973-160d0d94add1?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Northern Lights", location: "Iceland", image: "https://images.unsplash.com/photo-1579033461380-adb47c3eb938?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Bali Rice Terraces", location: "Ubud, Bali", image: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Swiss Alps", location: "Zermatt, Switzerland", image: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?q=80&w=600&auto=format&fit=crop" },
-                  { name: "Great Wall", location: "Beijing, China", image: "https://images.unsplash.com/photo-1508804185872-d7badad00f7d?q=80&w=600&auto=format&fit=crop" }
-                ].map((place, i) => (
-                  <motion.div
-                    key={i}
-                    className="group relative overflow-hidden rounded-3xl bg-white/70 backdrop-blur-md border border-white/40 shadow-sm hover:shadow-lg transition-all duration-500 cursor-pointer"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    whileHover={{ y: -4 }}
-                  >
-                    {/* Tall Portrait Image */}
-                    <div className="relative aspect-[4/5] overflow-hidden">
-                      <img
-                        src={place.image}
-                        alt={place.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 brightness-110"
-                      />
-
-                      {/* Soft Bottom Gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent via-70% to-transparent" />
-
-                      {/* Minimal Overlaid Text */}
-                      <div className="absolute bottom-0 left-0 right-0 p-5">
-                        <h4 className="text-xl font-bold text-white mb-1 drop-shadow-lg">
-                          {place.name}
-                        </h4>
-                        <div className="flex items-center gap-1.5 text-white/75">
-                          <MapPin size={12} className="flex-shrink-0" />
-                          <span className="text-xs font-medium">{place.location}</span>
-                        </div>
-                      </div>
-
-                      {/* Heart Icon on Hover */}
-                      <motion.button
-                        className="absolute top-4 right-4 h-10 w-10 bg-white/95 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-300"
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.95 }}
-                      >
-                        <Heart size={16} className="fill-rose-500 text-rose-500" />
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            )}
-
-            {activeTab === "Reviews" && (
-              <div className="text-center py-32">
-                <div className="max-w-md mx-auto space-y-4">
-                  <div className="w-24 h-24 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <p className="text-2xl font-bold text-slate-400">📝</p>
+                    <span className="stat-name">Trips Planned</span>
+                    <span className="stat-value">{user.stats.tripsPlanned}</span>
                   </div>
-                  <p className="text-slate-400 text-xl font-medium">No reviews yet</p>
-                  <p className="text-slate-500 text-lg">Your adventures will appear here once you start sharing your stories.</p>
+                  <div className="stat-row">
+                    <div className="stat-icon-wrapper">
+                      <Bookmark size={24} className="text-[#0081C9]" />
+                    </div>
+                    <span className="stat-name">Places Saved</span>
+                    <span className="stat-value">{user.stats.placesSaved}</span>
+                  </div>
+                  <div className="stat-row">
+                    <div className="stat-icon-wrapper">
+                      <Award size={24} className="text-[#0081C9]" />
+                    </div>
+                    <span className="stat-name">Miles Traveled</span>
+                    <span className="stat-value">{user.stats.milesTraveled}</span>
+                  </div>
+                  <div className="stat-row">
+                    <div className="stat-icon-wrapper">
+                      <Globe size={24} className="text-[#0081C9]" />
+                    </div>
+                    <span className="stat-name">Countries Visited</span>
+                    <span className="stat-value">{user.stats.countriesVisited}</span>
+                  </div>
                 </div>
               </div>
+            </section>
+
+            {/* Row 2, Col 1 */}
+            <section className="card badges-card flex-col-card">
+              <h3 className="card-title">ACHIEVEMENTS</h3>
+              <div className="badges-grid" style={{ flexGrow: 1, alignContent: 'center' }}>
+                {user.badges.map(badge => {
+                  const IconComponent = badge.name === "Early Bird" ? Sun : (badge.name === "Foodie" ? Utensils : Compass);
+                  return (
+                    <div className="badge-item" key={badge.id} title={badge.name}>
+                      <div className="badge-icon">
+                        <IconComponent size={28} />
+                      </div>
+                      <span className="badge-name">{badge.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* Row 3, Col 1 */}
+            <section className="card journal-card flex-col-card">
+              <h3 className="card-title">TRAVEL JOURNAL</h3>
+
+              {isWritingJournal ? (
+                <div className="journal-editor" style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                  <textarea
+                    autoFocus
+                    placeholder="How are you feeling about your upcoming trip?"
+                    value={journalEntry}
+                    onChange={(e) => setJournalEntry(e.target.value)}
+                    className="journal-textarea"
+                  />
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                    <button onClick={() => setIsWritingJournal(false)} style={{ flex: 1, padding: '1rem', borderRadius: '16px', background: '#f1f5f9', color: '#64748b', border: 'none', fontWeight: 800, cursor: 'pointer', transition: 'all 0.2s' }}>Cancel</button>
+                    <button onClick={handleSaveJournal} className="btn-journal-save" style={{ flex: 2, marginTop: 0 }}>Save Entry</button>
+                  </div>
+                </div>
+              ) : savedJournal ? (
+                <div className="journal-saved" style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+                  <div className="journal-date text-muted" style={{ fontSize: '0.75rem', marginBottom: '0.5rem' }}>Latest Entry</div>
+                  <p className="journal-text" style={{ fontSize: '0.95rem', fontStyle: 'italic', color: 'var(--text-main)', marginBottom: '1.5rem', flexGrow: 1 }}>"{savedJournal}"</p>
+                  <button className="mt-auto" onClick={() => setIsWritingJournal(true)} style={{ width: '100%', padding: '0.75rem', borderRadius: '12px', background: '#eff6ff', color: 'var(--primary-blue)', border: 'none', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    <i className="fa-solid fa-pen"></i> Edit Entry
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '1.5rem', flexGrow: 1 }}>
+                    You haven't logged any notes for your upcoming trips yet.
+                  </p>
+                  <button className="mt-auto" onClick={() => setIsWritingJournal(true)} style={{
+                    width: '100%', padding: '0.85rem', borderRadius: '16px', background: 'var(--primary-blue)',
+                    color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer', transition: 'background 0.2s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem'
+                  }}>
+                    <i className="fa-solid fa-book-open"></i> Write Entry
+                  </button>
+                </>
+              )}
+            </section>
+          </div>
+
+          {/* Main Content Column (participates in display: contents) */}
+          <div className="main-column">
+
+            {activeTab === 'Overview' && (
+              <>
+                {/* Row 1, Col 2 to 3 */}
+                <section className="card upcoming-trip-card flex-col-card">
+                  <div className="card-header-flex">
+                    <h2 className="section-title">Upcoming Journey</h2>
+                    <button className="btn-link">View Itinerary <i className="fa-solid fa-arrow-right ml-1"></i></button>
+                  </div>
+                  {user.upcomingTrips.map(trip => (
+                    <div className="trip-banner" style={{ backgroundImage: `url(${trip.image})`, flexGrow: 1, marginBottom: 0 }} key={trip.id}>
+                      <div className="trip-banner-overlay"></div>
+
+                      <div className="weather-widget">
+                        <i className="fa-solid fa-sun text-yellow"></i> {trip.weather}
+                      </div>
+
+                      <div className="trip-banner-content">
+                        <div className="trip-header-info">
+                          <span className="trip-status">{trip.status}</span>
+                          <span className="trip-countdown"><i className="fa-regular fa-clock"></i> In {trip.daysUntil} Days</span>
+                        </div>
+                        <h3>{trip.destination}</h3>
+                        <p><i className="fa-regular fa-calendar text-blue-light"></i> {trip.date}</p>
+                      </div>
+                    </div>
+                  ))}
+                </section>
+
+                {/* Sub-grid container that will also use display: contents to join the main grid */}
+                <div className="grid-2-cols">
+                  {/* Row 2 & 3, Col 2 */}
+                  <section className="card map-card flex-col-card">
+                    <div className="card-header-flex">
+                      <h2 className="section-title">World Explorer</h2>
+                      <i className="fa-solid fa-map-location-dot text-blue icon-large"></i>
+                    </div>
+
+                    <div className="map-placeholder" style={{ padding: 0, border: 'none', flexGrow: 1 }}>
+                      {isLoaded ? (
+                        <GoogleMap
+                          mapContainerStyle={mapContainerStyle}
+                          center={defaultCenter}
+                          zoom={1}
+                          options={{
+                            disableDefaultUI: true,
+                            styles: [
+                              { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+                              { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+                              { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+                              { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
+                              { featureType: "water", elementType: "geometry", stylers: [{ color: "#e0f2fe" }] }
+                            ]
+                          }}
+                        >
+                          {user.visitedPins && user.visitedPins.map(pin => (
+                            <Marker
+                              key={pin.id}
+                              position={{ lat: pin.lat, lng: pin.lng }}
+                              title={pin.name}
+                            />
+                          ))}
+                        </GoogleMap>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', width: '100%', color: '#9ca3af' }}>
+                          <i className="fa-solid fa-spinner fa-spin mr-2"></i> Loading Maps API...
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="progress-footer mt-4">
+                      <div className="progress-header">
+                        <span className="font-bold">{user.stats.countriesVisited} Countries</span>
+                        <span className="text-muted text-sm">Goal: 50</span>
+                      </div>
+                      <div className="progress-bar-container">
+                        <div className="progress-bar" style={{ width: `${(user.stats.countriesVisited / 50) * 100}%` }}></div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Row 2 & 3, Col 3 */}
+                  <section className="card bucketlist-card flex-col-card">
+                    <div className="card-header-flex">
+                      <h2 className="section-title">Bucket List</h2>
+                      <i className="fa-solid fa-clipboard-list text-blue icon-large"></i>
+                    </div>
+
+                    <ul className="bucket-list" style={{ flexGrow: 1 }}>
+                      {bucketList.map(item => (
+                        <li key={item.id} className={`bucket-item ${item.completed ? 'completed' : ''}`} onClick={() => toggleBucketList(item.id)}>
+                          <div className={`checkbox ${item.completed ? 'checked' : ''}`}>
+                            {item.completed && <i className="fa-solid fa-check"></i>}
+                          </div>
+                          <span>{item.place}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* Add new bucket list item form */}
+                    <form onSubmit={handleAddBucketItem} className="add-bucket-form mt-4">
+                      <input
+                        type="text"
+                        placeholder="Add new destination..."
+                        value={newBucketItem}
+                        onChange={(e) => setNewBucketItem(e.target.value)}
+                        className="bucket-input"
+                      />
+                      <button type="submit" className="bucket-submit-btn">
+                        <Send size={20} />
+                      </button>
+                    </form>
+                  </section>
+                </div>
+              </>
             )}
 
-            {activeTab === "Highlights" && (
-              <div className="text-center py-32">
-                <div className="max-w-md mx-auto space-y-4">
-                  <div className="w-24 h-24 mx-auto bg-slate-100 rounded-2xl flex items-center justify-center">
-                    <p className="text-2xl font-bold text-slate-400">✨</p>
-                  </div>
-                  <p className="text-slate-400 text-xl font-medium">No highlights yet</p>
-                  <p className="text-slate-500 text-lg">Create moments worth remembering and showcase them here.</p>
+            {activeTab === 'My Trips' && (
+              <section className="card trips-list-card full-span-card">
+                <h2 className="section-title">Past Adventures</h2>
+                <div className="trips-grid">
+                  {user.recentMemories.map(mem => (
+                    <div className="memory-card" key={mem.id}>
+                      <div className="memory-img-wrapper">
+                        <img src={mem.image} alt={mem.title} />
+                        <div className="memory-overlay">
+                          <button className="like-btn" onClick={() => handleLike(mem.title)}>
+                            <i className="fa-solid fa-heart"></i>
+                          </button>
+                        </div>
+                      </div>
+                      <div className="memory-info">
+                        <div className="memory-info-top">
+                          <h4>{mem.title}</h4>
+                          <span className="likes-count"><i className="fa-solid fa-heart text-red"></i> {mem.likes}</span>
+                        </div>
+                        <p><i className="fa-solid fa-location-dot text-red-accent"></i> {mem.location} &middot; {mem.date}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </section>
             )}
+
+            {activeTab === 'Memories' && (
+              <section className="card memories-card full-span-card">
+                <h2 className="section-title">Photo Gallery</h2>
+                <p className="text-muted">A collection of your favorite captured moments around the world.</p>
+                <div className="gallery-masonry">
+                  {user.recentMemories.map(mem => (
+                    <div className="gallery-item" key={mem.id}>
+                      <img src={mem.image} alt={mem.title} />
+                      <div className="gallery-item-overlay">
+                        <span className="gallery-title">{mem.title}</span>
+                        <span className="gallery-location"><i className="fa-solid fa-location-dot"></i> {mem.location}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {activeTab === 'Settings' && (
+              <section className="card settings-card full-span-card">
+                <h2 className="settings-title">
+                  <i className="fa-solid fa-gear text-blue"></i> Account Settings
+                </h2>
+
+                <div className="settings-fields-row">
+                  <div className="settings-field">
+                    <label>EMAIL ADDRESS</label>
+                    <div className="input-box">
+                      <i className="fa-regular fa-envelope text-gray"></i>
+                      <input type="email" value={user.email} readOnly />
+                    </div>
+                  </div>
+
+                  <div className="settings-field">
+                    <label>TRAVELER VIBE</label>
+                    <div className="input-box bg-blue-tint">
+                      <i className="fa-solid fa-globe text-blue"></i>
+                      <span className="vibe-text">{user.vibe}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="privacy-section" onClick={handlePrivacySettings}>
+                  <div className="privacy-icon bg-gray-light">
+                    <i className="fa-solid fa-shield-halved text-gray"></i>
+                  </div>
+                  <div className="privacy-info">
+                    <h4>Privacy & Security</h4>
+                    <p>Manage password and account access</p>
+                  </div>
+                  <div className="privacy-arrow">
+                    <i className="fa-solid fa-chevron-right text-gray-light"></i>
+                  </div>
+                </div>
+              </section>
+            )}
+
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 };
 
-export default Profile;
+const ProfileWrapper = () => {
+  const { user } = useUser();
+  const mockUser = {
+    navName: user?.name || "Guest Explorer",
+    navAvatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&auto=format&fit=crop",
+    coverImage: "https://images.unsplash.com/photo-1503220317375-aaad61436b1b?q=80&w=1200&auto=format&fit=crop",
+    avatarImage: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=300&auto=format&fit=crop",
+    profileName: user?.name || "Guest Explorer",
+    location: "Global Nomad",
+    joinedDate: "Joined April 2024",
+    email: user?.email || "guest@example.com",
+    vibe: user?.personalityTag || "Modern Nomad",
+    stats: {
+      tripsPlanned: 12,
+      placesSaved: 48,
+      milesTraveled: "14.2k",
+      countriesVisited: 8
+    },
+    badges: [
+      { id: 1, name: "Early Bird", icon: "fa-sun", color: "text-purple" },
+      { id: 2, name: "Foodie", icon: "fa-utensils", color: "text-red" },
+      { id: 3, name: "Explorer", icon: "fa-compass", color: "text-blue" }
+    ],
+    bucketList: [
+      { id: 1, place: "See Northern Lights in Iceland", completed: true },
+      { id: 2, place: "Hike Mount Fuji, Japan", completed: false },
+      { id: 3, place: "Eat pizza in Naples, Italy", completed: false }
+    ],
+    upcomingTrips: [
+      { id: 1, destination: "Tokyo, Japan", date: "Nov 12 - Nov 20, 2024", image: "https://images.unsplash.com/photo-1513407030348-c983a97b98d8?fm=jpg&q=60&w=3000&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Mnx8dG9reW98ZW58MHx8MHx8fDA%3D", status: "READY", daysUntil: 45, weather: "18°C" }
+    ],
+    visitedPins: [
+      { id: 1, name: "Paris", lat: 48.8566, lng: 2.3522 },
+      { id: 2, name: "New York", lat: 40.7128, lng: -74.0060 },
+      { id: 3, name: "Tokyo", lat: 35.6762, lng: 139.6503 }
+    ],
+    recentMemories: [
+      { id: 1, title: "Sunset at Eiffel", location: "Paris, France", date: "Oct 2023", image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=600", likes: 124 },
+      { id: 2, title: "Central Park Stroll", location: "NYC, USA", date: "Dec 2023", image: "https://images.unsplash.com/photo-1568515387631-8b650bbcdb90?q=80&w=600", likes: 89 },
+      { id: 3, title: "Sushi Night", location: "Tokyo, Japan", date: "Mar 2024", image: "https://images.unsplash.com/photo-1553621042-f6e147245754?q=80&w=600", likes: 210 }
+    ]
+  };
+
+  return <ProfileDashboard user={mockUser} />;
+};
+
+export default ProfileWrapper;

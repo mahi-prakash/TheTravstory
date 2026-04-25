@@ -195,83 +195,9 @@ const initialDays = {
   },
 };
 
-const savedPlaces = [
-  {
-    id: "saved-1",
-    name: "Eiffel Tower Area",
-    type: "activity",
-    rating: 4.9,
-    img: "https://images.unsplash.com/photo-1570077188670-e3a8d69ac5ff?q=80&w=900&auto=format&fit=crop",
-    coords: [48.8584, 2.2945],
-    category: "Landmark",
-    cost: "€26",
-    duration: "2-3h",
-    bestTime: "Sunset",
-    tags: ["Iconic", "View", "Romance"],
-    desc: "The Iron Lady. Visit the summit for breathtaking views of Paris."
-  },
-  {
-    id: "saved-2",
-    name: "Le Marais",
-    type: "activity",
-    rating: 4.7,
-    img: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&w=600",
-    coords: [48.8575, 2.3592],
-    category: "District",
-    cost: "Free",
-    duration: "3h+",
-    bestTime: "Afternoon",
-    tags: ["Shopping", "Food", "History"],
-    desc: "A historic district in Paris known for its boutiques, galleries, and diverse dining scene."
-  },
-  {
-    id: "saved-3",
-    name: "Seine Cruise",
-    type: "activity",
-    rating: 4.8,
-    img: "https://images.unsplash.com/photo-1499856871940-a09627c6d7db?q=80&w=600",
-    coords: [48.8590, 2.2940],
-    category: "Adventure",
-    cost: "€15",
-    duration: "1h",
-    bestTime: "Evening",
-    tags: ["Boat", "Scenic", "Relaxing"],
-    desc: "Enjoy a scenic boat tour along the Seine River, passing by many of the city's top monuments."
-  },
-];
+const savedPlaces = [];
 
-const nearbyPlaces = [
-  {
-    id: "nearby-1",
-    name: "Café de Flore",
-    type: "food",
-    rating: 4.5,
-    aiMatchScore: 98,
-    img: "https://images.squarespace-cdn.com/content/v1/5c39b850f8370ada6518b722/1585242013733-DASOV04TETMNPCT4C11U/julian-dik--czl8QNCVKY-unsplash.jpg",
-    coords: [48.8541, 2.3331],
-    category: "Food",
-    cost: "€20-40",
-    duration: "1h",
-    bestTime: "Morning",
-    tags: ["Coffee", "History", "People Watching"],
-    desc: "One of the oldest coffeehouses in Paris, famous for its famous clientele."
-  },
-  {
-    id: "nearby-2",
-    name: "Luxembourg Gardens",
-    type: "activity",
-    rating: 4.8,
-    aiMatchScore: 92,
-    img: "https://eltour.travel/useruploads/articles/article_2678036d54.jpg",
-    coords: [48.8462, 2.3371],
-    category: "Nature",
-    cost: "Free",
-    duration: "1-2h",
-    bestTime: "Afternoon",
-    tags: ["Park", "Relax", "Gardens"],
-    desc: "A beautiful 17th-century park & palace, perfect for a relaxing stroll or a picnic."
-  },
-];
+
 
 // --- Helpers ---
 
@@ -380,6 +306,10 @@ export default function Planner() {
   const isModified = activeTrip?.itinerary &&
     activeTrip?.ai_itinerary &&
     JSON.stringify(activeTrip.itinerary) !== JSON.stringify(activeTrip.ai_itinerary);
+
+  // 🌍 Dynamic Nearby Places from AI
+  const activeItinerary = activeTrip?.itinerary || (itineraryCache || {})[activeTripId] || {};
+  const aiNearbyPlaces = activeItinerary.nearby_places || activeTrip?.ai_itinerary?.nearby_places || [];
 
   const [days, setDays] = useState({});
   const [planMode, setPlanMode] = useState("user");
@@ -936,47 +866,12 @@ export default function Planner() {
                 <div className="flex flex-col">
                   <h2 className="text-[28px] font-bold text-slate-800 tracking-tight">Itinerary</h2>
 
-                  {/* TRIP SELECTOR DROPDOWN Trigger */}
-                  <Dropdown
-                    align="left"
-                    width="w-56"
-                    trigger={
-                      <button className="flex items-center gap-1.5 px-0.5 py-0.5 transition-colors group">
-                        <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
-                          {activeTrip?.title || activeTrip?.name || "Select Trip"}
-                        </span>
-                        <ChevronDown size={12} className="text-slate-300 group-hover:text-slate-500 transition-transform duration-300" />
-                      </button>
-                    }
-                  >
-                    {({ close }) => (
-                      <div className="py-2">
-                        <div className="px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] border-b border-slate-50 mb-1">
-                          Switch Trip
-                        </div>
-                        <div className="max-h-[280px] overflow-y-auto no-scrollbar">
-                          {(realTrips || []).map(trip => (
-                            <button
-                              key={trip.id}
-                              onClick={() => {
-                                navigate(`/planner/${trip.id}`);
-                                setActiveTrip(trip.id);
-                                close();
-                              }}
-                              className={`w-full px-5 py-3 text-left text-[11px] font-bold transition-all flex items-center justify-between group ${activeTripId === trip.id
-                                ? 'bg-sky-50 text-sky-600'
-                                : 'text-slate-600 hover:bg-slate-50 hover:text-sky-600'}`}
-                            >
-                              {trip.title || trip.name}
-                              {activeTripId === trip.id && (
-                                <div className="h-1.5 w-1.5 rounded-full bg-sky-600" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </Dropdown>
+                  {/* Current Trip Display */}
+                  <div className="flex items-center gap-1.5 px-0.5 py-0.5">
+                    <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                      {activeTrip?.title || activeTrip?.name || "New Trip"}
+                    </span>
+                  </div>
                 </div>
 
 
@@ -1701,17 +1596,17 @@ export default function Planner() {
 
               {/* EMPTY STATE FOR SAVED */}
               {!searchQuery.trim() && activeTab === "saved" && savedPlaces.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                    <Star size={18} className="text-slate-300" />
+                <div className="flex flex-col items-center justify-center mt-6 py-8 px-6 text-center bg-white rounded-3xl border border-slate-100 shadow-sm">
+                  <div className="w-14 h-14 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100/50 shadow-sm">
+                    <Star size={24} className="text-amber-500 fill-amber-500/20" />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-1">No saved places yet.</h3>
-                  <p className="text-[10px] text-slate-500 font-medium leading-relaxed mb-4">
-                    Save places from Explore to add them here.
+                  <h3 className="text-base font-extrabold text-slate-800 mb-2">Your wishlist is waiting! ✨</h3>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed mb-5 max-w-[220px]">
+                    You haven't saved any places yet. Discover amazing spots in Explore and add them here to craft your perfect journey!
                   </p>
                   <button
                     onClick={() => navigate("/explore")}
-                    className="text-[11px] font-bold text-sky-600 hover:text-sky-700 hover:underline transition-all"
+                    className="text-xs font-bold text-sky-600 hover:text-white transition-all bg-sky-50 hover:bg-sky-500 px-5 py-2.5 rounded-full border border-sky-100 hover:border-sky-500 shadow-sm"
                   >
                     Go to Explore
                   </button>
@@ -1719,11 +1614,11 @@ export default function Planner() {
               )}
 
               {(searchQuery.trim()
-                ? [...savedPlaces, ...nearbyPlaces].filter(p =>
+                ? [...savedPlaces, ...aiNearbyPlaces].filter(p =>
                   p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                   p.desc.toLowerCase().includes(searchQuery.toLowerCase())
                 )
-                : (activeTab === "saved" ? savedPlaces : nearbyPlaces)
+                : (activeTab === "saved" ? savedPlaces : aiNearbyPlaces)
               ).map((place, idx) => (
                 <motion.div
                   initial={{ opacity: 0, y: 10 }}

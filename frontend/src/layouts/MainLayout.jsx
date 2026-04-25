@@ -9,7 +9,7 @@ import Dropdown from "../components/common/Dropdown";
 
 const MainLayout = () => {
   const location = useLocation();
-  const isFullWidthPage = location.pathname === "/chat" || location.pathname.startsWith("/planner") || location.pathname === "/profile" || location.pathname === "/bookings";
+  const isFullWidthPage = location.pathname === "/chat" || location.pathname.startsWith("/planner") || location.pathname === "/profile" || location.pathname === "/bookings" || location.pathname === "/explore";
   const { user, logout } = useUser();
 
   return (
@@ -59,11 +59,11 @@ const MainLayout = () => {
           <nav className="flex-1 flex justify-center">
             <ul className="flex items-center gap-10 text-m font-semibold">
               {[
-                { to: "/profile", label: "Profile" },
                 { to: "/chat", label: "Chat" },
                 { to: "/planner", label: "Planner" },
                 { to: "/bookings", label: "Bookings" },
                 { to: "/explore", label: "Explore" },
+                { to: "/profile", label: "Profile" },
               ].map((item) => (
                 <li key={item.to}>
                   <NavLink
@@ -82,40 +82,24 @@ const MainLayout = () => {
             </ul>
           </nav>
 
-          {/* RIGHT — PROFILE */}
-          <div className="flex items-center gap-4 shrink-0">
+          {/* RIGHT — PROFILE (Simplified for MVP) */}
+          <NavLink to="/profile" className="flex items-center gap-4 shrink-0 hover:opacity-80 transition-opacity">
             <div className="hidden md:block text-right">
-              <p className="text-lg font-semibold text-slate-900 leading-tight">
-                {user?.name || "Traveler"}
+              <p className="text-sm font-bold text-slate-900 leading-tight">
+                Guest Traveler
               </p>
-              <p className="text-sm text-sky-600 font-medium leading-tight">
-                {user?.personalityTag || ""}
-              </p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">View Profile</p>
             </div>
+            <div className="h-10 w-10 rounded-xl bg-slate-100 overflow-hidden ring-2 ring-white shadow-sm">
+              <img
+                src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=100&auto=format&fit=crop"
+                alt="Profile"
+                className="h-full w-full object-cover"
+              />
+            </div>
+          </NavLink>
 
-            <Dropdown
-              trigger={
-                <div className="flex items-center gap-1.5 hover:bg-slate-100 p-1 pl-0 pr-1 rounded-full transition-colors border border-transparent hover:border-slate-100 cursor-pointer">
-                  <div className="h-11 w-11 rounded-full bg-sky-600 overflow-hidden ring-2 ring-slate-100">
-                    <img
-                      src={user?.picture || "/profile2.jpg"}
-                      alt="Profile"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <ChevronDown size={14} className="text-slate-400" />
-                </div>
-              }
-            >
-              <button
-                onClick={logout}
-                className="w-full px-4 py-2.5 text-left flex items-center gap-3 text-red-600 hover:bg-slate-50 font-semibold text-sm rounded-xl transition-colors"
-              >
-                <LogOut size={16} />
-                Sign Out
-              </button>
-            </Dropdown>
-          </div>
+
 
         </div>
       </header>
