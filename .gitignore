@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Logs
 logs
 *.log
@@ -74,6 +73,8 @@ typings/
 .env
 .env.test
 .env.production
+.env.local
+.env.*.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -117,8 +118,8 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
-=======
+
+# Python
 __pycache__/
 *.pkl
-node_modules/
->>>>>>> 2bbf2eb50a6d1fac8d19345bde9b1591115a3270
+
